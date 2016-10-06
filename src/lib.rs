@@ -32,7 +32,7 @@ mod tests {
         let text = r"
 
      
-
+	
 ";
         let result = parse(text.as_bytes());
         assert_eq!(IResult::Done(&b""[..], Vec::new()), result);
