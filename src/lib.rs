@@ -18,8 +18,8 @@ named!(pub parse(&[u8]) -> Vec<MagicEntry>,
        ));
        
 
-named!(blank_line(&[u8]) -> Option<MagicEntry>, chain!(many0!(space) ~ newline, || None));
-named!(comment(&[u8]) -> Option<MagicEntry>, chain!(tag!("#") ~ not_line_ending ~ newline, || None));
+named!(blank_line(&[u8]) -> Option<MagicEntry>, chain!(opt!(space) ~ newline, || None));
+named!(comment(&[u8]) -> Option<MagicEntry>, chain!(opt!(space) ~ tag!("#") ~ opt!(not_line_ending) ~ newline, || None));
 named!(query(&[u8]) -> Option<MagicEntry>, chain!(tag!("abcd") ~ newline, || Some(MagicEntry)));
 
 #[cfg(test)]
@@ -43,8 +43,8 @@ mod tests {
         let text = r"
 # this is a comment
 # this is also a comment
-
-
+	# This is not at the beginning of the line
+#
 ";
         let result = parse(text.as_bytes());
         assert_eq!(IResult::Done(&b""[..], Vec::new()), result);
