@@ -1,10 +1,43 @@
 #[macro_use] extern crate nom;
 
-use nom::{space, newline, not_line_ending};
+use nom::*;
+use std::str::FromStr;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MagicEntry {
     level: u32,
+    offset: Offset,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BasicOffset {
+    Absolute(u64),
+    Relative(i64),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct IndirectOffset {
+    base: BasicOffset,
+    length: u32,
+    // op: Operation,
+    // disp: Displacement,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Offset {
+    Direct(BasicOffset),
+    AbsoluteIndirect(IndirectOffset),
+    RelativeIndirect(IndirectOffset),
+}
+
+impl Offset {
+    pub fn absolute(val: u64) -> Offset {
+        Offset::Direct(BasicOffset::Absolute(val))
+    }
+
+    pub fn relative(val: i64) -> Offset {
+        Offset::Direct(BasicOffset::Relative(val))
+    }
 }
 
 named!(pub parse(&[u8]) -> Vec<MagicEntry>,
@@ -26,14 +59,42 @@ named!(comment(&[u8]) -> Option<MagicEntry>, chain!(opt!(space) ~ tag!("#") ~ op
 named!(
     query(&[u8]) -> Option<MagicEntry>,
     chain!(level: fold_many0!(tag!(">"), 0, |acc, _| acc + 1) ~
-           line ~
+           mut entry: line ~
            newline,
-           || Some(MagicEntry {
-               level: level,
-           }))
+           || {
+               entry.level = level;
+               Some(entry)
+           })
 );
 
-named!(line(&[u8]) -> &[u8], tag!("abcd"));
+named!(line(&[u8]) -> MagicEntry,
+       chain!(off: offset,
+              || MagicEntry { level: 0, offset: off })
+);
+
+named!(offset(&[u8]) -> Offset, alt!(
+    unsigned_number => { |n| Offset::absolute(n) } |
+    chain!(tag!("&") ~ rel: signed_number, || { Offset::relative(rel) })
+));
+
+named!(
+    unsigned_number(&[u8]) -> u64,
+    map!(digit, |num_bytes| {
+        let num_str = std::str::from_utf8(num_bytes).unwrap();
+        u64::from_str(num_str).unwrap()
+    }));
+
+named!(
+    signed_number(&[u8]) -> i64,
+    chain!(neg: opt!(tag!("-")) ~
+           num: unsigned_number,
+           || {
+               match neg {
+                   Some(..) => -1 * (num as i64),
+                   None => num as i64
+               }
+           })
+);
 
 #[cfg(test)]
 mod tests {
@@ -42,48 +103,57 @@ mod tests {
 
     #[test]
     fn ignores_blank_lines() {
-        let text = r"
-
-     
-	
-";
         assert_eq!(
             IResult::Done(&b""[..], Vec::new()),
-            parse(text.as_bytes()));
+            parse("\n".as_bytes()));
+
+        assert_eq!(
+            IResult::Done(&b""[..], Vec::new()),
+            parse("    \n".as_bytes()));
+
+        assert_eq!(
+            IResult::Done(&b""[..], Vec::new()),
+            parse("\t\n".as_bytes()));
+
+        assert_eq!(
+            IResult::Done(&b""[..], Vec::new()),
+            parse("  \t  \n".as_bytes()));
     }
 
     #[test]
     fn ignores_comments() {
-        let text = r"
-# this is a comment
-# this is also a comment
-	# This is not at the beginning of the line
-#
-";
         assert_eq!(
             IResult::Done(&b""[..], Vec::new()),
-            parse(text.as_bytes()));
+            parse("#\n".as_bytes()));
+        assert_eq!(
+            IResult::Done(&b""[..], Vec::new()),
+            parse("# comment\n".as_bytes()));
+        assert_eq!(
+            IResult::Done(&b""[..], Vec::new()),
+            parse("   # comment\n".as_bytes()));
+        assert_eq!(
+            IResult::Done(&b""[..], Vec::new()),
+            parse("  \t #\t\n".as_bytes()));
     }
 
     #[test]
     fn reads_entries() {
-        let text = r"
-# comment
-
-abcd
-";
         assert_eq!(IResult::Done(&b""[..], vec![
-            MagicEntry { level: 0 },
-        ]), parse(text.as_bytes()));
+            MagicEntry { level: 0, offset: Offset::absolute(0) },
+        ]), parse("# comment\n\n0\n".as_bytes()));
     }
 
     #[test]
     fn reads_levels() {
-        let text = r"
->>>abcd
-";
         assert_eq!(IResult::Done(&b""[..], vec![
-            MagicEntry { level: 3 },
-        ]), parse(text.as_bytes()));
+            MagicEntry { level: 3, offset: Offset::absolute(0) },
+        ]), parse(">>>0\n".as_bytes()));
+    }
+
+    #[test]
+    fn direct_offset() {
+        assert_eq!(IResult::Done(&b""[..], Offset::absolute(108)),  super::offset("108".as_bytes()));
+        assert_eq!(IResult::Done(&b""[..], Offset::relative(108)),  super::offset("&108".as_bytes()));
+        assert_eq!(IResult::Done(&b""[..], Offset::relative(-108)), super::offset("&-108".as_bytes()));
     }
 }
