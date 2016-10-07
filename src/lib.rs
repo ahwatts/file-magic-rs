@@ -3,7 +3,9 @@
 use nom::{space, newline, not_line_ending};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct MagicEntry;
+pub struct MagicEntry {
+    level: u32,
+}
 
 named!(pub parse(&[u8]) -> Vec<MagicEntry>,
        fold_many0!(
@@ -20,7 +22,18 @@ named!(pub parse(&[u8]) -> Vec<MagicEntry>,
 
 named!(blank_line(&[u8]) -> Option<MagicEntry>, chain!(opt!(space) ~ newline, || None));
 named!(comment(&[u8]) -> Option<MagicEntry>, chain!(opt!(space) ~ tag!("#") ~ opt!(not_line_ending) ~ newline, || None));
-named!(query(&[u8]) -> Option<MagicEntry>, chain!(tag!("abcd") ~ newline, || Some(MagicEntry)));
+
+named!(
+    query(&[u8]) -> Option<MagicEntry>,
+    chain!(level: fold_many0!(tag!(">"), 0, |acc, _| acc + 1) ~
+           line ~
+           newline,
+           || Some(MagicEntry {
+               level: level,
+           }))
+);
+
+named!(line(&[u8]) -> &[u8], tag!("abcd"));
 
 #[cfg(test)]
 mod tests {
@@ -34,8 +47,9 @@ mod tests {
      
 	
 ";
-        let result = parse(text.as_bytes());
-        assert_eq!(IResult::Done(&b""[..], Vec::new()), result);
+        assert_eq!(
+            IResult::Done(&b""[..], Vec::new()),
+            parse(text.as_bytes()));
     }
 
     #[test]
@@ -46,8 +60,9 @@ mod tests {
 	# This is not at the beginning of the line
 #
 ";
-        let result = parse(text.as_bytes());
-        assert_eq!(IResult::Done(&b""[..], Vec::new()), result);
+        assert_eq!(
+            IResult::Done(&b""[..], Vec::new()),
+            parse(text.as_bytes()));
     }
 
     #[test]
@@ -57,7 +72,18 @@ mod tests {
 
 abcd
 ";
-        let result = parse(text.as_bytes());
-        assert_eq!(IResult::Done(&b""[..], vec![ MagicEntry ]), result);
+        assert_eq!(IResult::Done(&b""[..], vec![
+            MagicEntry { level: 0 },
+        ]), parse(text.as_bytes()));
+    }
+
+    #[test]
+    fn reads_levels() {
+        let text = r"
+>>>abcd
+";
+        assert_eq!(IResult::Done(&b""[..], vec![
+            MagicEntry { level: 3 },
+        ]), parse(text.as_bytes()));
     }
 }
