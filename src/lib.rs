@@ -1,44 +1,11 @@
 #[macro_use] extern crate nom;
 
+pub mod entry;
+mod hand;
+
+use entry::*;
 use nom::*;
 use std::str::FromStr;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct MagicEntry {
-    level: u32,
-    offset: Offset,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum BasicOffset {
-    Absolute(u64),
-    Relative(i64),
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct IndirectOffset {
-    base: BasicOffset,
-    length: u32,
-    // op: Operation,
-    // disp: Displacement,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Offset {
-    Direct(BasicOffset),
-    AbsoluteIndirect(IndirectOffset),
-    RelativeIndirect(IndirectOffset),
-}
-
-impl Offset {
-    pub fn absolute(val: u64) -> Offset {
-        Offset::Direct(BasicOffset::Absolute(val))
-    }
-
-    pub fn relative(val: i64) -> Offset {
-        Offset::Direct(BasicOffset::Relative(val))
-    }
-}
 
 named!(pub parse(&[u8]) -> Vec<MagicEntry>,
        fold_many0!(
@@ -78,11 +45,14 @@ named!(offset(&[u8]) -> Offset, alt!(
 ));
 
 named!(
-    unsigned_number(&[u8]) -> u64,
-    map!(digit, |num_bytes| {
-        let num_str = std::str::from_utf8(num_bytes).unwrap();
-        u64::from_str(num_str).unwrap()
-    }));
+    unsigned_number(&[u8]) -> u64, alt!(
+        map!(digit, |num_bytes| {
+            let num_str = std::str::from_utf8(num_bytes).unwrap();
+            u64::from_str(num_str).unwrap()
+        })
+        // | chain!(tag!("0x") ~ )
+    )
+);
 
 named!(
     signed_number(&[u8]) -> i64,
@@ -98,6 +68,7 @@ named!(
 
 #[cfg(test)]
 mod tests {
+    use entry::*;
     use nom::IResult;
     use super::*;
 
