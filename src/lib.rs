@@ -40,17 +40,27 @@ named!(line(&[u8]) -> MagicEntry,
 );
 
 named!(offset(&[u8]) -> Offset, alt!(
-    unsigned_number => { |n| Offset::absolute(n) } |
-    chain!(tag!("&") ~ rel: signed_number, || { Offset::relative(rel) })
+    direct_offset => { |off| Offset::direct(off) } |
+    chain!(tag!("(") ~ off: direct_offset ~ tag!(")"), || { Offset::absolute_indirect(off, None) }) |
+    chain!(tag!("&(") ~ off: direct_offset ~ tag!(")"), || { Offset::relative_indirect(off, None) })
+));
+
+named!(direct_offset(&[u8]) -> DirectOffset, alt!(
+    unsigned_number => { |n| DirectOffset::absolute(n) } |
+    chain!(tag!("&") ~ rel: signed_number, || { DirectOffset::relative(rel) })
 ));
 
 named!(
-    unsigned_number(&[u8]) -> u64, alt!(
+    unsigned_number(&[u8]) -> u64, alt_complete!(
+        chain!(tag!("0x") ~ hex_bytes: hex_digit, || {
+            let hex_str = std::str::from_utf8(hex_bytes).unwrap();
+            u64::from_str_radix(hex_str, 16).unwrap()
+        })
+            |
         map!(digit, |num_bytes| {
             let num_str = std::str::from_utf8(num_bytes).unwrap();
             u64::from_str(num_str).unwrap()
         })
-        // | chain!(tag!("0x") ~ )
     )
 );
 
@@ -124,7 +134,33 @@ mod tests {
     #[test]
     fn direct_offset() {
         assert_eq!(IResult::Done(&b""[..], Offset::absolute(108)),  super::offset("108".as_bytes()));
+        assert_eq!(IResult::Done(&b""[..], Offset::absolute(108)),  super::offset("0x6c".as_bytes()));
         assert_eq!(IResult::Done(&b""[..], Offset::relative(108)),  super::offset("&108".as_bytes()));
+        assert_eq!(IResult::Done(&b""[..], Offset::relative(108)),  super::offset("&0x6C".as_bytes()));
         assert_eq!(IResult::Done(&b""[..], Offset::relative(-108)), super::offset("&-108".as_bytes()));
+    }
+
+    #[test]
+    fn indirect_offset() {
+        assert_eq!(IResult::Done(&b""[..], Offset::absolute_indirect(DirectOffset::absolute(60), None)), super::offset("(0x3c)".as_bytes()));
+        assert_eq!(IResult::Done(&b""[..], Offset::absolute_indirect(DirectOffset::relative(124), None)), super::offset("(&0x7c)".as_bytes()));
+        assert_eq!(IResult::Done(&b""[..], Offset::absolute_indirect(DirectOffset::relative(-124), None)), super::offset("(&-0x7c)".as_bytes()));
+        assert_eq!(IResult::Done(&b""[..], Offset::relative_indirect(DirectOffset::absolute(60), None)), super::offset("&(60)".as_bytes()));
+        assert_eq!(IResult::Done(&b""[..], Offset::relative_indirect(DirectOffset::relative(124), None)), super::offset("&(&0x7c)".as_bytes()));
+        assert_eq!(IResult::Done(&b""[..], Offset::relative_indirect(DirectOffset::relative(-124), None)), super::offset("&(&-124)".as_bytes()));
+    }
+
+    #[test]
+    fn numbers() {
+        assert_eq!(IResult::Done(&b""[..], 3_551_379_183), super::unsigned_number("0xd3adBEEF".as_bytes()));
+        assert_eq!(IResult::Done(&b""[..], 314), super::unsigned_number("314".as_bytes()));
+        assert_eq!(IResult::Done(&b""[..], 0), super::unsigned_number("0".as_bytes()));
+
+        // Should this actually be octal?
+        assert_eq!(IResult::Done(&b""[..], 314), super::unsigned_number("0314".as_bytes()));
+
+        assert_eq!(IResult::Done(&b""[..], 314), super::signed_number("314".as_bytes()));
+        assert_eq!(IResult::Done(&b""[..], -314), super::signed_number("-314".as_bytes()));
+        assert_eq!(IResult::Done(&b""[..], -124), super::signed_number("-0x7c".as_bytes()));
     }
 }

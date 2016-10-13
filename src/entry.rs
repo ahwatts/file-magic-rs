@@ -4,33 +4,66 @@ pub struct MagicEntry {
     pub offset: Offset,
 }
 
+// 123     123 bytes from the start
+// &123    123 bytes from here
+// (123)   (the value at 123 bytes from the start) bytes from the start
+// (&123)  (the value at 123 bytes from here) bytes from the start
+// &(123)  (the value at 123 bytes from the start) bytes from here
+// &(&123) (the value at 123 bytes from here) bytes from here
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum BasicOffset {
+pub enum DirectOffset {
     Absolute(u64),
     Relative(i64),
 }
 
+impl DirectOffset {
+    pub fn absolute(val: u64) -> DirectOffset {
+        DirectOffset::Absolute(val)
+    }
+
+    pub fn relative(val: i64) -> DirectOffset {
+        DirectOffset::Relative(val)
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct IndirectOffset {
-    pub base: BasicOffset,
-    pub length: u32,
-    // op: Operation,
-    // disp: Displacement,
+    pub base: DirectOffset,
+    pub length: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Offset {
-    Direct(BasicOffset),
+    Direct(DirectOffset),
     AbsoluteIndirect(IndirectOffset),
     RelativeIndirect(IndirectOffset),
 }
 
 impl Offset {
     pub fn absolute(val: u64) -> Offset {
-        Offset::Direct(BasicOffset::Absolute(val))
+        Offset::Direct(DirectOffset::Absolute(val))
     }
 
     pub fn relative(val: i64) -> Offset {
-        Offset::Direct(BasicOffset::Relative(val))
+        Offset::Direct(DirectOffset::Relative(val))
+    }
+
+    pub fn direct(base: DirectOffset) -> Offset {
+        Offset::Direct(base)
+    }
+
+    pub fn absolute_indirect(base: DirectOffset, length: Option<usize>) -> Offset {
+        Offset::AbsoluteIndirect(IndirectOffset {
+            base: base,
+            length: length.unwrap_or(4),
+        })
+    }
+
+    pub fn relative_indirect(base: DirectOffset, length: Option<usize>) -> Offset {
+        Offset::RelativeIndirect(IndirectOffset {
+            base: base,
+            length: length.unwrap_or(4),
+        })
     }
 }
