@@ -41,13 +41,44 @@ named!(line(&[u8]) -> MagicEntry,
 
 named!(offset(&[u8]) -> Offset, alt!(
     direct_offset => { |off| Offset::direct(off) } |
-    chain!(tag!("(") ~ off: direct_offset ~ tag!(")"), || { Offset::absolute_indirect(off, None) }) |
-    chain!(tag!("&(") ~ off: direct_offset ~ tag!(")"), || { Offset::relative_indirect(off, None) })
+    indirect_offset => { |off| Offset::absolute_indirect(off) } |
+    chain!(tag!("&") ~ off: indirect_offset, || { Offset::relative_indirect(off) })
 ));
 
 named!(direct_offset(&[u8]) -> DirectOffset, alt!(
     unsigned_number => { |n| DirectOffset::absolute(n) } |
     chain!(tag!("&") ~ rel: signed_number, || { DirectOffset::relative(rel) })
+));
+
+named!(indirect_offset(&[u8]) -> IndirectOffset, chain!(
+    tag!("(")
+        ~ off: direct_offset
+        ~ size_and_format: opt!(chain!(tag!(".") ~ size: size_format, || size))
+        ~ tag!(")"),
+    || {
+        let (length, format) = size_and_format.unwrap_or((4, Format::LittleEndian));
+        IndirectOffset {
+            base: off,
+            length: length,
+            format: format,
+        }
+    }
+));
+
+named!(size_format(&[u8]) -> (usize, Format), alt!(
+    tag!("B") => { |_| (1, Format::Byte) }            |
+    tag!("C") => { |_| (1, Format::Byte) }            |
+    tag!("b") => { |_| (1, Format::Byte) }            |
+    tag!("c") => { |_| (1, Format::Byte) }            |
+    tag!("S") => { |_| (2, Format::BigEndian) }       |
+    tag!("H") => { |_| (2, Format::BigEndian) }       |
+    tag!("s") => { |_| (2, Format::LittleEndian) }    |
+    tag!("h") => { |_| (2, Format::LittleEndian) }    |
+    tag!("L") => { |_| (4, Format::BigEndian) }       |
+    tag!("l") => { |_| (4, Format::LittleEndian) }    |
+    tag!("I") => { |_| (4, Format::BigEndianId3) }    |
+    tag!("i") => { |_| (4, Format::LittleEndianId3) } |
+    tag!("m") => { |_| (4, Format::Pdp11Endian) }
 ));
 
 named!(
@@ -133,21 +164,44 @@ mod tests {
 
     #[test]
     fn direct_offset() {
-        assert_eq!(IResult::Done(&b""[..], Offset::absolute(108)),  super::offset("108".as_bytes()));
-        assert_eq!(IResult::Done(&b""[..], Offset::absolute(108)),  super::offset("0x6c".as_bytes()));
-        assert_eq!(IResult::Done(&b""[..], Offset::relative(108)),  super::offset("&108".as_bytes()));
-        assert_eq!(IResult::Done(&b""[..], Offset::relative(108)),  super::offset("&0x6C".as_bytes()));
-        assert_eq!(IResult::Done(&b""[..], Offset::relative(-108)), super::offset("&-108".as_bytes()));
+        assert_eq!(IResult::Done(&b""[..], DirectOffset::absolute(108)),  super::direct_offset("108".as_bytes()));
+        assert_eq!(IResult::Done(&b""[..], DirectOffset::absolute(108)),  super::direct_offset("0x6c".as_bytes()));
+        assert_eq!(IResult::Done(&b""[..], DirectOffset::relative(108)),  super::direct_offset("&108".as_bytes()));
+        assert_eq!(IResult::Done(&b""[..], DirectOffset::relative(108)),  super::direct_offset("&0x6C".as_bytes()));
+        assert_eq!(IResult::Done(&b""[..], DirectOffset::relative(-108)), super::direct_offset("&-108".as_bytes()));
     }
 
     #[test]
     fn indirect_offset() {
-        assert_eq!(IResult::Done(&b""[..], Offset::absolute_indirect(DirectOffset::absolute(60), None)), super::offset("(0x3c)".as_bytes()));
-        assert_eq!(IResult::Done(&b""[..], Offset::absolute_indirect(DirectOffset::relative(124), None)), super::offset("(&0x7c)".as_bytes()));
-        assert_eq!(IResult::Done(&b""[..], Offset::absolute_indirect(DirectOffset::relative(-124), None)), super::offset("(&-0x7c)".as_bytes()));
-        assert_eq!(IResult::Done(&b""[..], Offset::relative_indirect(DirectOffset::absolute(60), None)), super::offset("&(60)".as_bytes()));
-        assert_eq!(IResult::Done(&b""[..], Offset::relative_indirect(DirectOffset::relative(124), None)), super::offset("&(&0x7c)".as_bytes()));
-        assert_eq!(IResult::Done(&b""[..], Offset::relative_indirect(DirectOffset::relative(-124), None)), super::offset("&(&-124)".as_bytes()));
+        assert_eq!(
+            IResult::Done(
+                &b""[..],
+                IndirectOffset {
+                    base: DirectOffset::absolute(60),
+                    length: 4,
+                    format: Format::LittleEndian,
+                }),
+            super::indirect_offset("(0x3c)".as_bytes()));
+
+        assert_eq!(
+            IResult::Done(
+                &b""[..],
+                IndirectOffset {
+                    base: DirectOffset::relative(124),
+                    length: 4,
+                    format: Format::LittleEndian,
+                }),
+            super::indirect_offset("(&0x7c)".as_bytes()));
+
+        assert_eq!(
+            IResult::Done(
+                &b""[..],
+                IndirectOffset {
+                    base: DirectOffset::relative(-124),
+                    length: 4,
+                    format: Format::LittleEndian,
+                }),
+            super::indirect_offset("(&-0x7c)".as_bytes()));
     }
 
     #[test]
@@ -162,5 +216,38 @@ mod tests {
         assert_eq!(IResult::Done(&b""[..], 314), super::signed_number("314".as_bytes()));
         assert_eq!(IResult::Done(&b""[..], -314), super::signed_number("-314".as_bytes()));
         assert_eq!(IResult::Done(&b""[..], -124), super::signed_number("-0x7c".as_bytes()));
+    }
+
+    #[test]
+    fn indirect_offset_size_format() {
+        macro_rules! assert_size_format {
+            ($test_str:expr => ($base: expr, $len:expr, $format:expr)) => {
+                assert_eq!(
+                    IResult::Done(&b""[..], IndirectOffset {
+                        base: $base,
+                        length: $len,
+                        format: $format,
+                    }),
+                    super::indirect_offset($test_str.as_bytes()));
+            }
+        }
+
+        assert_size_format!("(60.B)" => (DirectOffset::Absolute(60), 1, Format::Byte));
+        assert_size_format!("(60.b)" => (DirectOffset::Absolute(60), 1, Format::Byte));
+        assert_size_format!("(60.C)" => (DirectOffset::Absolute(60), 1, Format::Byte));
+        assert_size_format!("(60.c)" => (DirectOffset::Absolute(60), 1, Format::Byte));
+
+        assert_size_format!("(60.S)" => (DirectOffset::Absolute(60), 2, Format::BigEndian));
+        assert_size_format!("(60.H)" => (DirectOffset::Absolute(60), 2, Format::BigEndian));
+        assert_size_format!("(60.s)" => (DirectOffset::Absolute(60), 2, Format::LittleEndian));
+        assert_size_format!("(60.h)" => (DirectOffset::Absolute(60), 2, Format::LittleEndian));
+
+        assert_size_format!("(60.L)" => (DirectOffset::Absolute(60), 4, Format::BigEndian));
+        assert_size_format!("(60.l)" => (DirectOffset::Absolute(60), 4, Format::LittleEndian));
+
+        assert_size_format!("(60.I)" => (DirectOffset::Absolute(60), 4, Format::BigEndianId3));
+        assert_size_format!("(60.i)" => (DirectOffset::Absolute(60), 4, Format::LittleEndianId3));
+
+        assert_size_format!("(60.m)" => (DirectOffset::Absolute(60), 4, Format::Pdp11Endian));
     }
 }

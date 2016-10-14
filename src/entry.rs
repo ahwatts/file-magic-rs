@@ -31,6 +31,17 @@ impl DirectOffset {
 pub struct IndirectOffset {
     pub base: DirectOffset,
     pub length: usize,
+    pub format: Format,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Format {
+    Byte,
+    BigEndian,
+    LittleEndian,
+    BigEndianId3,
+    LittleEndianId3,
+    Pdp11Endian,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -53,17 +64,11 @@ impl Offset {
         Offset::Direct(base)
     }
 
-    pub fn absolute_indirect(base: DirectOffset, length: Option<usize>) -> Offset {
-        Offset::AbsoluteIndirect(IndirectOffset {
-            base: base,
-            length: length.unwrap_or(4),
-        })
+    pub fn absolute_indirect(base: IndirectOffset) -> Offset {
+        Offset::AbsoluteIndirect(base)
     }
 
-    pub fn relative_indirect(base: DirectOffset, length: Option<usize>) -> Offset {
-        Offset::RelativeIndirect(IndirectOffset {
-            base: base,
-            length: length.unwrap_or(4),
-        })
+    pub fn relative_indirect(base: IndirectOffset) -> Offset {
+        Offset::RelativeIndirect(base)
     }
 }
