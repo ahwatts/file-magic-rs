@@ -30,7 +30,9 @@ named!(
 );
 
 named!(line(&[u8]) -> MagicEntry,
-       chain!(off: offset,
+       chain!(off: offset ~
+              space ~
+              _data_type: data_type,
               || MagicEntry { level: 0, offset: off })
 );
 
@@ -45,35 +47,55 @@ named!(direct_offset(&[u8]) -> DirectOffset, alt!(
     chain!(tag!("&") ~ rel: signed_number, || { DirectOffset::relative(rel) })
 ));
 
-named!(indirect_offset(&[u8]) -> IndirectOffset, chain!(
-    tag!("(")
-        ~ off: direct_offset
-        ~ size_and_format: opt!(chain!(tag!(".") ~ size: size_format, || size))
-        ~ tag!(")"),
-    || {
-        let (length, format) = size_and_format.unwrap_or((4, Format::LittleEndian));
-        IndirectOffset {
-            base: off,
-            length: length,
-            format: format,
-        }
-    }
+named!(indirect_offset(&[u8]) -> IndirectOffset,
+       chain!(tag!("(") ~
+              off: direct_offset ~
+              size_and_format: opt!(chain!(tag!(".") ~ size: indirect_offset_size_format, || size)) ~
+              tag!(")"),
+              || {
+                  let (length, format) = size_and_format.unwrap_or((4, IndirectOffsetFormat::LittleEndian));
+                  IndirectOffset {
+                      base: off,
+                      length: length,
+                      format: format,
+                  }
+              }
 ));
 
-named!(size_format(&[u8]) -> (usize, Format), alt!(
-    tag!("B") => { |_| (1, Format::Byte) }            |
-    tag!("C") => { |_| (1, Format::Byte) }            |
-    tag!("b") => { |_| (1, Format::Byte) }            |
-    tag!("c") => { |_| (1, Format::Byte) }            |
-    tag!("S") => { |_| (2, Format::BigEndian) }       |
-    tag!("H") => { |_| (2, Format::BigEndian) }       |
-    tag!("s") => { |_| (2, Format::LittleEndian) }    |
-    tag!("h") => { |_| (2, Format::LittleEndian) }    |
-    tag!("L") => { |_| (4, Format::BigEndian) }       |
-    tag!("l") => { |_| (4, Format::LittleEndian) }    |
-    tag!("I") => { |_| (4, Format::BigEndianId3) }    |
-    tag!("i") => { |_| (4, Format::LittleEndianId3) } |
-    tag!("m") => { |_| (4, Format::Pdp11Endian) }
+named!(indirect_offset_size_format(&[u8]) -> (usize, IndirectOffsetFormat), alt!(
+    tag!("B") => { |_| (1, IndirectOffsetFormat::Byte) }            |
+    tag!("C") => { |_| (1, IndirectOffsetFormat::Byte) }            |
+    tag!("b") => { |_| (1, IndirectOffsetFormat::Byte) }            |
+    tag!("c") => { |_| (1, IndirectOffsetFormat::Byte) }            |
+    tag!("S") => { |_| (2, IndirectOffsetFormat::BigEndian) }       |
+    tag!("H") => { |_| (2, IndirectOffsetFormat::BigEndian) }       |
+    tag!("s") => { |_| (2, IndirectOffsetFormat::LittleEndian) }    |
+    tag!("h") => { |_| (2, IndirectOffsetFormat::LittleEndian) }    |
+    tag!("L") => { |_| (4, IndirectOffsetFormat::BigEndian) }       |
+    tag!("l") => { |_| (4, IndirectOffsetFormat::LittleEndian) }    |
+    tag!("I") => { |_| (4, IndirectOffsetFormat::BigEndianId3) }    |
+    tag!("i") => { |_| (4, IndirectOffsetFormat::LittleEndianId3) } |
+    tag!("m") => { |_| (4, IndirectOffsetFormat::Pdp11Endian) }
+));
+
+named!(data_type(&[u8]) -> DataType, alt!(
+    tag!("byte")     => { |_| DataType::Byte }                   |
+    tag!("short")    => { |_| DataType::Short(Endian::Native) }  |
+    tag!("beshort")  => { |_| DataType::Short(Endian::Big) }     |
+    tag!("leshort")  => { |_| DataType::Short(Endian::Little) }  |
+    tag!("long")     => { |_| DataType::Long(Endian::Native) }   |
+    tag!("belong")   => { |_| DataType::Long(Endian::Big) }      |
+    tag!("lelong")   => { |_| DataType::Long(Endian::Little) }   |
+    tag!("melong")   => { |_| DataType::Long(Endian::Pdp11) }    |
+    tag!("quad")     => { |_| DataType::Quad(Endian::Native) }   |
+    tag!("bequad")   => { |_| DataType::Quad(Endian::Big) }      |
+    tag!("lequad")   => { |_| DataType::Quad(Endian::Little) }   |
+    tag!("float")    => { |_| DataType::Float(Endian::Native) }  |
+    tag!("befloat")  => { |_| DataType::Float(Endian::Big) }     |
+    tag!("lefloat")  => { |_| DataType::Float(Endian::Little) }  |
+    tag!("double")   => { |_| DataType::Double(Endian::Native) } |
+    tag!("bedouble") => { |_| DataType::Double(Endian::Big) }    |
+    tag!("ledouble") => { |_| DataType::Double(Endian::Little) }
 ));
 
 named!(
@@ -174,7 +196,7 @@ mod tests {
                 IndirectOffset {
                     base: DirectOffset::absolute(60),
                     length: 4,
-                    format: Format::LittleEndian,
+                    format: IndirectOffsetFormat::LittleEndian,
                 }),
             super::indirect_offset("(0x3c)".as_bytes()));
 
@@ -184,7 +206,7 @@ mod tests {
                 IndirectOffset {
                     base: DirectOffset::relative(124),
                     length: 4,
-                    format: Format::LittleEndian,
+                    format: IndirectOffsetFormat::LittleEndian,
                 }),
             super::indirect_offset("(&0x7c)".as_bytes()));
 
@@ -194,7 +216,7 @@ mod tests {
                 IndirectOffset {
                     base: DirectOffset::relative(-124),
                     length: 4,
-                    format: Format::LittleEndian,
+                    format: IndirectOffsetFormat::LittleEndian,
                 }),
             super::indirect_offset("(&-0x7c)".as_bytes()));
     }
@@ -227,22 +249,22 @@ mod tests {
             }
         }
 
-        assert_size_format!("(60.B)" => (DirectOffset::Absolute(60), 1, Format::Byte));
-        assert_size_format!("(60.b)" => (DirectOffset::Absolute(60), 1, Format::Byte));
-        assert_size_format!("(60.C)" => (DirectOffset::Absolute(60), 1, Format::Byte));
-        assert_size_format!("(60.c)" => (DirectOffset::Absolute(60), 1, Format::Byte));
+        assert_size_format!("(60.B)" => (DirectOffset::Absolute(60), 1, IndirectOffsetFormat::Byte));
+        assert_size_format!("(60.b)" => (DirectOffset::Absolute(60), 1, IndirectOffsetFormat::Byte));
+        assert_size_format!("(60.C)" => (DirectOffset::Absolute(60), 1, IndirectOffsetFormat::Byte));
+        assert_size_format!("(60.c)" => (DirectOffset::Absolute(60), 1, IndirectOffsetFormat::Byte));
 
-        assert_size_format!("(60.S)" => (DirectOffset::Absolute(60), 2, Format::BigEndian));
-        assert_size_format!("(60.H)" => (DirectOffset::Absolute(60), 2, Format::BigEndian));
-        assert_size_format!("(60.s)" => (DirectOffset::Absolute(60), 2, Format::LittleEndian));
-        assert_size_format!("(60.h)" => (DirectOffset::Absolute(60), 2, Format::LittleEndian));
+        assert_size_format!("(60.S)" => (DirectOffset::Absolute(60), 2, IndirectOffsetFormat::BigEndian));
+        assert_size_format!("(60.H)" => (DirectOffset::Absolute(60), 2, IndirectOffsetFormat::BigEndian));
+        assert_size_format!("(60.s)" => (DirectOffset::Absolute(60), 2, IndirectOffsetFormat::LittleEndian));
+        assert_size_format!("(60.h)" => (DirectOffset::Absolute(60), 2, IndirectOffsetFormat::LittleEndian));
 
-        assert_size_format!("(60.L)" => (DirectOffset::Absolute(60), 4, Format::BigEndian));
-        assert_size_format!("(60.l)" => (DirectOffset::Absolute(60), 4, Format::LittleEndian));
+        assert_size_format!("(60.L)" => (DirectOffset::Absolute(60), 4, IndirectOffsetFormat::BigEndian));
+        assert_size_format!("(60.l)" => (DirectOffset::Absolute(60), 4, IndirectOffsetFormat::LittleEndian));
 
-        assert_size_format!("(60.I)" => (DirectOffset::Absolute(60), 4, Format::BigEndianId3));
-        assert_size_format!("(60.i)" => (DirectOffset::Absolute(60), 4, Format::LittleEndianId3));
+        assert_size_format!("(60.I)" => (DirectOffset::Absolute(60), 4, IndirectOffsetFormat::BigEndianId3));
+        assert_size_format!("(60.i)" => (DirectOffset::Absolute(60), 4, IndirectOffsetFormat::LittleEndianId3));
 
-        assert_size_format!("(60.m)" => (DirectOffset::Absolute(60), 4, Format::Pdp11Endian));
+        assert_size_format!("(60.m)" => (DirectOffset::Absolute(60), 4, IndirectOffsetFormat::Pdp11Endian));
     }
 }
