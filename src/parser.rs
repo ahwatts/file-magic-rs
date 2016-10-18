@@ -86,22 +86,54 @@ named!(indirect_offset_size_format(&[u8]) -> (usize, IndirectOffsetFormat), alt!
 
 named!(data_type(&[u8]) -> DataType, alt!(
     tag!("byte")     => { |_| DataType::Byte }                   |
+
     tag!("short")    => { |_| DataType::Short(Endian::Native) }  |
     tag!("beshort")  => { |_| DataType::Short(Endian::Big) }     |
     tag!("leshort")  => { |_| DataType::Short(Endian::Little) }  |
+
     tag!("long")     => { |_| DataType::Long(Endian::Native) }   |
     tag!("belong")   => { |_| DataType::Long(Endian::Big) }      |
     tag!("lelong")   => { |_| DataType::Long(Endian::Little) }   |
     tag!("melong")   => { |_| DataType::Long(Endian::Pdp11) }    |
+
     tag!("quad")     => { |_| DataType::Quad(Endian::Native) }   |
     tag!("bequad")   => { |_| DataType::Quad(Endian::Big) }      |
     tag!("lequad")   => { |_| DataType::Quad(Endian::Little) }   |
+
     tag!("float")    => { |_| DataType::Float(Endian::Native) }  |
     tag!("befloat")  => { |_| DataType::Float(Endian::Big) }     |
     tag!("lefloat")  => { |_| DataType::Float(Endian::Little) }  |
+
     tag!("double")   => { |_| DataType::Double(Endian::Native) } |
     tag!("bedouble") => { |_| DataType::Double(Endian::Big) }    |
-    tag!("ledouble") => { |_| DataType::Double(Endian::Little) }
+    tag!("ledouble") => { |_| DataType::Double(Endian::Little) } |
+
+
+    tag!("leid3") => { |_| DataType::Id3(Endian::Little) } |
+    tag!("beid3") => { |_| DataType::Id3(Endian::Big) }    |
+
+
+    tag!("date")     => { |_| DataType::LongDate(Endian::Native, TimeZone::Utc) }   |
+    tag!("bedate")   => { |_| DataType::LongDate(Endian::Big, TimeZone::Utc) }      |
+    tag!("ledate")   => { |_| DataType::LongDate(Endian::Little, TimeZone::Utc) }   |
+    tag!("medate")   => { |_| DataType::LongDate(Endian::Pdp11, TimeZone::Utc) }    |
+
+    tag!("ldate")    => { |_| DataType::LongDate(Endian::Native, TimeZone::Local) } |
+    tag!("beldate")  => { |_| DataType::LongDate(Endian::Big, TimeZone::Local) }    |
+    tag!("leldate")  => { |_| DataType::LongDate(Endian::Little, TimeZone::Local) } |
+    tag!("meldate")  => { |_| DataType::LongDate(Endian::Pdp11, TimeZone::Local) }  |
+
+    tag!("qdate")    => { |_| DataType::QuadDate(Endian::Native, TimeZone::Utc) }   |
+    tag!("beqdate")  => { |_| DataType::QuadDate(Endian::Big, TimeZone::Utc) }      |
+    tag!("leqdate")  => { |_| DataType::QuadDate(Endian::Little, TimeZone::Utc) }   |
+
+    tag!("qldate")   => { |_| DataType::QuadDate(Endian::Native, TimeZone::Local) } |
+    tag!("beqldate") => { |_| DataType::QuadDate(Endian::Big, TimeZone::Local) }    |
+    tag!("leqldate") => { |_| DataType::QuadDate(Endian::Little, TimeZone::Local) } |
+
+    tag!("qwdate")   => { |_| DataType::WindowsDate(Endian::Native) }               |
+    tag!("beqwdate") => { |_| DataType::WindowsDate(Endian::Big) }                  |
+    tag!("leqwdate") => { |_| DataType::WindowsDate(Endian::Little) }
 ));
 
 named!(
@@ -246,6 +278,9 @@ mod tests {
 
     #[test]
     fn indirect_offset_size_format() {
+        use entry::DirectOffset::*;
+        use entry::IndirectOffsetFormat::*;
+
         macro_rules! assert_size_format {
             ($test_str:expr => ($base: expr, $len:expr, $format:expr)) => {
                 assert_eq!(
@@ -258,27 +293,30 @@ mod tests {
             }
         }
 
-        assert_size_format!("(60.B)" => (DirectOffset::Absolute(60), 1, IndirectOffsetFormat::Byte));
-        assert_size_format!("(60.b)" => (DirectOffset::Absolute(60), 1, IndirectOffsetFormat::Byte));
-        assert_size_format!("(60.C)" => (DirectOffset::Absolute(60), 1, IndirectOffsetFormat::Byte));
-        assert_size_format!("(60.c)" => (DirectOffset::Absolute(60), 1, IndirectOffsetFormat::Byte));
+        assert_size_format!("(60.B)" => (Absolute(60), 1, Byte));
+        assert_size_format!("(60.b)" => (Absolute(60), 1, Byte));
+        assert_size_format!("(60.C)" => (Absolute(60), 1, Byte));
+        assert_size_format!("(60.c)" => (Absolute(60), 1, Byte));
 
-        assert_size_format!("(60.S)" => (DirectOffset::Absolute(60), 2, IndirectOffsetFormat::BigEndian));
-        assert_size_format!("(60.H)" => (DirectOffset::Absolute(60), 2, IndirectOffsetFormat::BigEndian));
-        assert_size_format!("(60.s)" => (DirectOffset::Absolute(60), 2, IndirectOffsetFormat::LittleEndian));
-        assert_size_format!("(60.h)" => (DirectOffset::Absolute(60), 2, IndirectOffsetFormat::LittleEndian));
+        assert_size_format!("(60.S)" => (Absolute(60), 2, BigEndian));
+        assert_size_format!("(60.H)" => (Absolute(60), 2, BigEndian));
+        assert_size_format!("(60.s)" => (Absolute(60), 2, LittleEndian));
+        assert_size_format!("(60.h)" => (Absolute(60), 2, LittleEndian));
 
-        assert_size_format!("(60.L)" => (DirectOffset::Absolute(60), 4, IndirectOffsetFormat::BigEndian));
-        assert_size_format!("(60.l)" => (DirectOffset::Absolute(60), 4, IndirectOffsetFormat::LittleEndian));
+        assert_size_format!("(60.L)" => (Absolute(60), 4, BigEndian));
+        assert_size_format!("(60.l)" => (Absolute(60), 4, LittleEndian));
 
-        assert_size_format!("(60.I)" => (DirectOffset::Absolute(60), 4, IndirectOffsetFormat::BigEndianId3));
-        assert_size_format!("(60.i)" => (DirectOffset::Absolute(60), 4, IndirectOffsetFormat::LittleEndianId3));
+        assert_size_format!("(60.I)" => (Absolute(60), 4, BigEndianId3));
+        assert_size_format!("(60.i)" => (Absolute(60), 4, LittleEndianId3));
 
-        assert_size_format!("(60.m)" => (DirectOffset::Absolute(60), 4, IndirectOffsetFormat::Pdp11Endian));
+        assert_size_format!("(60.m)" => (Absolute(60), 4, Pdp11Endian));
     }
 
     #[test]
     fn data_type() {
+        use entry::Endian::*;
+        use entry::TimeZone::*;
+
         macro_rules! assert_data_type {
             ($test_str:expr => $data_type:ident) => {
                 assert_eq!(
@@ -294,21 +332,42 @@ mod tests {
         }
 
         assert_data_type!("byte"     => Byte);
-        assert_data_type!("short"    => Short(Endian::Native));
-        assert_data_type!("beshort"  => Short(Endian::Big));
-        assert_data_type!("leshort"  => Short(Endian::Little));
-        assert_data_type!("long"     => Long(Endian::Native));
-        assert_data_type!("belong"   => Long(Endian::Big));
-        assert_data_type!("lelong"   => Long(Endian::Little));
-        assert_data_type!("melong"   => Long(Endian::Pdp11));
-        assert_data_type!("quad"     => Quad(Endian::Native));
-        assert_data_type!("bequad"   => Quad(Endian::Big));
-        assert_data_type!("lequad"   => Quad(Endian::Little));
-        assert_data_type!("float"    => Float(Endian::Native));
-        assert_data_type!("befloat"  => Float(Endian::Big));
-        assert_data_type!("lefloat"  => Float(Endian::Little));
-        assert_data_type!("double"   => Double(Endian::Native));
-        assert_data_type!("bedouble" => Double(Endian::Big));
-        assert_data_type!("ledouble" => Double(Endian::Little));
+        assert_data_type!("short"    => Short(Native));
+        assert_data_type!("beshort"  => Short(Big));
+        assert_data_type!("leshort"  => Short(Little));
+        assert_data_type!("long"     => Long(Native));
+        assert_data_type!("belong"   => Long(Big));
+        assert_data_type!("lelong"   => Long(Little));
+        assert_data_type!("melong"   => Long(Pdp11));
+        assert_data_type!("quad"     => Quad(Native));
+        assert_data_type!("bequad"   => Quad(Big));
+        assert_data_type!("lequad"   => Quad(Little));
+        assert_data_type!("float"    => Float(Native));
+        assert_data_type!("befloat"  => Float(Big));
+        assert_data_type!("lefloat"  => Float(Little));
+        assert_data_type!("double"   => Double(Native));
+        assert_data_type!("bedouble" => Double(Big));
+        assert_data_type!("ledouble" => Double(Little));
+
+        assert_data_type!("beid3" => Id3(Big));
+        assert_data_type!("leid3" => Id3(Little));
+
+        assert_data_type!("date" => LongDate(Native, Utc));
+        assert_data_type!("bedate" => LongDate(Big, Utc));
+        assert_data_type!("ledate" => LongDate(Little, Utc));
+        assert_data_type!("medate" => LongDate(Pdp11, Utc));
+        assert_data_type!("ldate" => LongDate(Native, Local));
+        assert_data_type!("beldate" => LongDate(Big, Local));
+        assert_data_type!("leldate" => LongDate(Little, Local));
+        assert_data_type!("meldate" => LongDate(Pdp11, Local));
+        assert_data_type!("qdate" => QuadDate(Native, Utc));
+        assert_data_type!("beqdate" => QuadDate(Big, Utc));
+        assert_data_type!("leqdate" => QuadDate(Little, Utc));
+        assert_data_type!("qldate" => QuadDate(Native, Local));
+        assert_data_type!("beqldate" => QuadDate(Big, Local));
+        assert_data_type!("leqldate" => QuadDate(Little, Local));
+        assert_data_type!("qwdate" => WindowsDate(Native));
+        assert_data_type!("beqwdate" => WindowsDate(Big));
+        assert_data_type!("leqwdate" => WindowsDate(Little));
     }
 }
