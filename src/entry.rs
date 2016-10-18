@@ -2,6 +2,7 @@
 pub struct MagicEntry {
     pub level: u32,
     pub offset: Offset,
+    pub data_type: DataType,
 }
 
 // 123     123 bytes from the start
@@ -74,6 +75,7 @@ pub enum IndirectOffsetFormat {
     Pdp11Endian,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DataType {
     Byte,
     Short(Endian),
@@ -94,6 +96,7 @@ pub enum DataType {
     Default, Clear,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Endian {
     Little,
     Big,
@@ -101,6 +104,7 @@ pub enum Endian {
     Pdp11,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TimeZone {
     Local,
     Utc,
