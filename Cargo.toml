@@ -3,5 +3,9 @@ name = "file-magic"
 version = "0.1.0"
 authors = ["Andrew Watts <ahwatts@gmail.com>"]
 
+[[bin]]
+name = "compile"
+path = "src/bin/compile.rs"
+
 [dependencies]
 nom = "^1.2.4"
