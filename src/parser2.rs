@@ -53,10 +53,30 @@ fn parse_line<I>(line: I) -> CombParseResult<I, Option<MagicEntry>>
     })
 }
 
-fn entry<I>(_line: I) -> CombParseResult<I, MagicEntry>
+fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
     where I: Stream<Item = char>
 {
-    unimplemented!();
+    let (offset, rest) = try!(offset(line));
+    let (_, rest) = try!(spaces().parse(rest));
+
+    Ok((
+        MagicEntry {
+            level: 0,
+            offset: offset,
+            data_type: DataType::Byte { signed: true },
+            test: Test,
+            message: String::new(),
+        },
+        rest
+    ))
+}
+
+fn offset<I>(input: I) -> CombParseResult<I, Offset>
+    where I: Stream<Item = char>
+{
+    unsigned_number(input).map(|(n, rest)| {
+        (Offset::direct(DirectOffset::absolute(n)), rest)
+    })
 }
 
 #[allow(dead_code)]
