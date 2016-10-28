@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use entry::*;
 use nom::*;
 use std::io::{BufRead, BufReader, Cursor, Read, Write};

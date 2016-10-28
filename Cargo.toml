@@ -9,3 +9,4 @@ path = "src/bin/compile.rs"
 
 [dependencies]
 nom = "^1.2.4"
+combine = "^2.0.0"
