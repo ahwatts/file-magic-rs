@@ -121,7 +121,8 @@ fn data_type<I>(input: I) -> CombParseResult<I, DataType>
 
 fn test_value<I: Stream<Item = char>>(input: I) -> CombParseResult<I, Test> {
     token('x').with(look_ahead(space())).map(|_| Test::AlwaysTrue)
-        .or(unsigned_number().map(|n| Test::Number(n)))
+        .or(unsigned_number().skip(look_ahead(space())).map(|n| Test::Number(n)))
+        .or(many1::<String, _>(satisfy(|c| c != ' ' && c != '\t')).skip(look_ahead(space())).map(|s| Test::String(s)))
         .parse(input)
 }
 
