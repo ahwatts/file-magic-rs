@@ -154,6 +154,8 @@ fn data_type<I>(input: I) -> CombParseResult<I, DataType>
 
 #[cfg(test)]
 mod tests {
+    use entry::*;
+
     #[test]
     fn ignores_blank_lines() {
         assert_eq!(Ok((None, "")), super::parse_line(""));
@@ -168,5 +170,40 @@ mod tests {
         assert_eq!(Ok((None, "")), super::parse_line("# Comment"));
         assert_eq!(Ok((None, "")), super::parse_line("   # Comment"));
         assert_eq!(Ok((None, "")), super::parse_line("  \t #\t"));
+    }
+
+    #[test]
+    fn direct_offset() {
+        assert_eq!(Ok((Offset::direct(DirectOffset::absolute(108)), "")), super::offset("108"));
+        assert_eq!(Ok((Offset::direct(DirectOffset::absolute(108)), "")), super::offset("0x6c"));
+    }
+
+    #[test]
+    fn data_type() {
+        use entry::DataType::*;
+        use entry::Endian::*;
+
+        assert_eq!(Ok((Byte { signed: true }, "")), super::data_type("byte"));
+
+        assert_eq!(Ok((Short { endian: Native, signed: true }, "")), super::data_type("short"));
+        assert_eq!(Ok((Short { endian: Big,    signed: true }, "")), super::data_type("beshort"));
+        assert_eq!(Ok((Short { endian: Little, signed: true }, "")), super::data_type("leshort"));
+
+        assert_eq!(Ok((Long { endian: Native, signed: true }, "")), super::data_type("long"));
+        assert_eq!(Ok((Long { endian: Big,    signed: true }, "")), super::data_type("belong"));
+        assert_eq!(Ok((Long { endian: Little, signed: true }, "")), super::data_type("lelong"));
+        assert_eq!(Ok((Long { endian: Pdp11,  signed: true }, "")), super::data_type("melong"));
+
+        assert_eq!(Ok((Quad { endian: Native, signed: true }, "")), super::data_type("quad"));
+        assert_eq!(Ok((Quad { endian: Big,    signed: true }, "")), super::data_type("bequad"));
+        assert_eq!(Ok((Quad { endian: Little, signed: true }, "")), super::data_type("lequad"));
+
+        assert_eq!(Ok((Float(Native), "")), super::data_type("float"));
+        assert_eq!(Ok((Float(Big),    "")), super::data_type("befloat"));
+        assert_eq!(Ok((Float(Little), "")), super::data_type("lefloat"));
+
+        assert_eq!(Ok((Double(Native), "")), super::data_type("double"));
+        assert_eq!(Ok((Double(Big),    "")), super::data_type("bedouble"));
+        assert_eq!(Ok((Double(Little), "")), super::data_type("ledouble"));
     }
 }
