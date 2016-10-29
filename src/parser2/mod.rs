@@ -63,7 +63,7 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
     let (_, rest) = try!(spaces().parse(rest));
     let (data_type, rest) = try!(data_type(rest));
     let (_, rest) = try!(spaces().parse(rest));
-    let (_test_str, rest) = try!(many1::<String, _>(try(satisfy(|c| c != ' ' && c != '\t'))).parse(rest));
+    let (test_val, rest) = try!(test_value(rest));
     let (_, rest) = try!(spaces().parse(rest));
     let ((message, _), rest) = try!((many1::<String, _>(try(any())), eof()).parse(rest));
 
@@ -72,7 +72,7 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
             level: level as u32,
             offset: offset,
             data_type: data_type,
-            test: Test::AlwaysTrue,
+            test: test_val,
             message: message,
         },
         rest
@@ -93,63 +93,36 @@ fn data_type<I>(input: I) -> CombParseResult<I, DataType>
     use entry::DataType::*;
     use entry::Endian::*;
 
-    let (type_str, rest) = try! {
-        choice([
-            try(string("byte")),
+    choice([
+        try(string("byte").with(value(Byte { signed: true }))),
 
-            try(string("short")),
-            try(string("beshort")),
-            try(string("leshort")),
+        try(string("short")  .with(value(Short { endian: Native, signed: true }))),
+        try(string("beshort").with(value(Short { endian: Big,    signed: true }))),
+        try(string("leshort").with(value(Short { endian: Little, signed: true }))),
 
-            try(string("long")),
-            try(string("belong")),
-            try(string("lelong")),
-            try(string("melong")),
+        try(string("long")  .with(value(Long { endian: Native, signed: true }))),
+        try(string("belong").with(value(Long { endian: Big,    signed: true }))),
+        try(string("lelong").with(value(Long { endian: Little, signed: true }))),
+        try(string("melong").with(value(Long { endian: Pdp11,  signed: true }))),
 
-            try(string("quad")),
-            try(string("bequad")),
-            try(string("lequad")),
+        try(string("quad")  .with(value(Quad { endian: Native, signed: true }))),
+        try(string("bequad").with(value(Quad { endian: Big,    signed: true }))),
+        try(string("lequad").with(value(Quad { endian: Little, signed: true }))),
 
-            try(string("float")),
-            try(string("befloat")),
-            try(string("lefloat")),
+        try(string("float")  .with(value(Float(Native)))),
+        try(string("befloat").with(value(Float(Big)))),
+        try(string("lefloat").with(value(Float(Little)))),
 
-            try(string("double")),
-            try(string("bedouble")),
-            try(string("ledouble")),
-        ]).parse(input)
-    };
+        try(string("double")  .with(value(Double(Native)))),
+        try(string("bedouble").with(value(Double(Big)))),
+        try(string("ledouble").with(value(Double(Little)))),
+    ]).parse(input)
+}
 
-    match type_str {
-        "byte" => Ok((Byte { signed: true }, rest)),
-
-        "short"   => Ok((Short { endian: Native, signed: true }, rest)),
-        "beshort" => Ok((Short { endian: Big,    signed: true }, rest)),
-        "leshort" => Ok((Short { endian: Little, signed: true }, rest)),
-
-        "long"   => Ok((Long { endian: Native, signed: true }, rest)),
-        "belong" => Ok((Long { endian: Big,    signed: true }, rest)),
-        "lelong" => Ok((Long { endian: Little, signed: true }, rest)),
-        "melong" => Ok((Long { endian: Pdp11,  signed: true }, rest)),
-
-        "quad"   => Ok((Quad { endian: Native, signed: true }, rest)),
-        "bequad" => Ok((Quad { endian: Big,    signed: true }, rest)),
-        "lequad" => Ok((Quad { endian: Little, signed: true }, rest)),
-
-        "float"   => Ok((Float(Native), rest)),
-        "befloat" => Ok((Float(Big),    rest)),
-        "lefloat" => Ok((Float(Little), rest)),
-
-        "double"   => Ok((Double(Native), rest)),
-        "bedouble" => Ok((Double(Big),    rest)),
-        "ledouble" => Ok((Double(Little), rest)),
-
-        _ => {
-            unexpected(format!("data type: {}", type_str))
-                .parse(rest)
-                .map(|_| unreachable!())
-        }
-    }
+fn test_value<I: Stream<Item = char>>(input: I) -> CombParseResult<I, Test> {
+    token('x').with(look_ahead(space())).map(|_| Test::AlwaysTrue)
+        .or(unsigned_number().map(|n| Test::Number(n)))
+        .parse(input)
 }
 
 #[cfg(test)]

@@ -129,4 +129,5 @@ pub enum Endian {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Test {
     AlwaysTrue,
+    Number(u64),
 }

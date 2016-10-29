@@ -43,9 +43,9 @@ pub fn unsigned_number<I: Stream<Item = char>>() -> UnsignedNumber<I> {
 }
 
 impl_parser! {
-    HexNumber(), char, (Str<I>, Many1<String, HexDigit<I>>), u64,
+    HexNumber(), char, With<Str<I>, Many1<String, HexDigit<I> > >, u64,
     |celf, input| {
-        celf.0.parse_lazy(input).map(|(_, hex_str)| {
+        celf.0.parse_lazy(input).map(|hex_str| {
             u64::from_str_radix(&hex_str, 16).unwrap()
         })
     }
@@ -53,7 +53,7 @@ impl_parser! {
 
 #[inline(always)]
 pub fn hex_number<I>() -> HexNumber<I> where I: Stream<Item = char> {
-    HexNumber((string("0x"), many1::<String, _>(hex_digit())), PhantomData)
+    HexNumber(string("0x").with(many1::<String, _>(hex_digit())), PhantomData)
 }
 
 impl_parser! {
