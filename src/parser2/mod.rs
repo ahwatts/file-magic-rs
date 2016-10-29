@@ -72,7 +72,7 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
             level: level as u32,
             offset: offset,
             data_type: data_type,
-            test: Test,
+            test: Test::AlwaysTrue,
             message: message,
         },
         rest
@@ -156,11 +156,17 @@ fn data_type<I>(input: I) -> CombParseResult<I, DataType>
 mod tests {
     #[test]
     fn ignores_blank_lines() {
+        assert_eq!(Ok((None, "")), super::parse_line(""));
+        assert_eq!(Ok((None, "")), super::parse_line("    "));
+        assert_eq!(Ok((None, "")), super::parse_line("\t\t\t"));
         assert_eq!(Ok((None, "")), super::parse_line("  \t  "));
     }
 
     #[test]
     fn ignores_comments() {
-        assert_eq!(Ok((None, "")), super::parse_line(" \t# Comment"));
+        assert_eq!(Ok((None, "")), super::parse_line("#"));
+        assert_eq!(Ok((None, "")), super::parse_line("# Comment"));
+        assert_eq!(Ok((None, "")), super::parse_line("   # Comment"));
+        assert_eq!(Ok((None, "")), super::parse_line("  \t #\t"));
     }
 }

@@ -59,7 +59,7 @@ named! {
                                          level: 0,
                                          offset: off,
                                          data_type: data_type,
-                                         test: Test,
+                                         test: Test::AlwaysTrue,
                                          message: String::from_utf8_lossy(message).to_string(),
                                      }
                                  }),
@@ -93,7 +93,7 @@ named!(line(&[u8]) -> MagicEntry,
                       level: 0,
                       offset: off,
                       data_type: data_type,
-                      test: Test,
+                      test: Test::AlwaysTrue,
                       message: String::from_utf8_lossy(message).to_string(),
                   }
               })
@@ -230,40 +230,21 @@ mod tests {
     use entry::*;
     use nom::IResult;
 
-    // #[test]
-    // fn ignores_blank_lines() {
-    //     assert_eq!(
-    //         IResult::Done(&b""[..], Vec::new()),
-    //         parse("\n".as_bytes()));
+    #[test]
+    fn ignores_blank_lines() {
+        assert_eq!(IResult::Done(&b""[..], None), super::parse_line("".as_bytes()));
+        assert_eq!(IResult::Done(&b""[..], None), super::parse_line("    ".as_bytes()));
+        assert_eq!(IResult::Done(&b""[..], None), super::parse_line("\t".as_bytes()));
+        assert_eq!(IResult::Done(&b""[..], None), super::parse_line("  \t  ".as_bytes()));
+    }
 
-    //     assert_eq!(
-    //         IResult::Done(&b""[..], Vec::new()),
-    //         parse("    \n".as_bytes()));
-
-    //     assert_eq!(
-    //         IResult::Done(&b""[..], Vec::new()),
-    //         parse("\t\n".as_bytes()));
-
-    //     assert_eq!(
-    //         IResult::Done(&b""[..], Vec::new()),
-    //         parse("  \t  \n".as_bytes()));
-    // }
-
-    // #[test]
-    // fn ignores_comments() {
-    //     assert_eq!(
-    //         IResult::Done(&b""[..], Vec::new()),
-    //         parse("#\n".as_bytes()));
-    //     assert_eq!(
-    //         IResult::Done(&b""[..], Vec::new()),
-    //         parse("# comment\n".as_bytes()));
-    //     assert_eq!(
-    //         IResult::Done(&b""[..], Vec::new()),
-    //         parse("   # comment\n".as_bytes()));
-    //     assert_eq!(
-    //         IResult::Done(&b""[..], Vec::new()),
-    //         parse("  \t #\t\n".as_bytes()));
-    // }
+    #[test]
+    fn ignores_comments() {
+        assert_eq!(IResult::Done(&b""[..], None), super::parse_line("#".as_bytes()));
+        assert_eq!(IResult::Done(&b""[..], None), super::parse_line("# comment".as_bytes()));
+        assert_eq!(IResult::Done(&b""[..], None), super::parse_line("   # comment".as_bytes()));
+        assert_eq!(IResult::Done(&b""[..], None), super::parse_line("  \t #\t".as_bytes()));
+    }
 
     // #[test]
     // fn reads_entries() {

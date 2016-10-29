@@ -127,4 +127,6 @@ pub enum Endian {
 // }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Test;
+pub enum Test {
+    AlwaysTrue,
+}
