@@ -57,17 +57,17 @@ pub fn numeric_operator<I: Stream<Item = char> >() -> NumericOperator<I> {
     NumericOperator(one_of("=<>!&^~".chars()), PhantomData)
 }
 
-impl_parser! {
-    SignedNumber(), char, With<Token<I>, UnsignedNumber<I> >, i64,
-    |celf, input| {
-        celf.0.parse_lazy(input).map(|n| -1 * (n as i64))
-    }
-}
+// impl_parser! {
+//     SignedNumber(), char, With<Token<I>, UnsignedNumber<I> >, i64,
+//     |celf, input| {
+//         celf.0.parse_lazy(input).map(|n| -1 * (n as i64))
+//     }
+// }
 
-#[inline(always)]
-pub fn signed_number<I: Stream<Item = char> >() -> SignedNumber<I> {
-    SignedNumber(token('-').with(unsigned_number()), PhantomData)
-}
+// #[inline(always)]
+// pub fn signed_number<I: Stream<Item = char> >() -> SignedNumber<I> {
+//     SignedNumber(token('-').with(unsigned_number()), PhantomData)
+// }
 
 impl_parser! {
     UnsignedNumber(), char, Or<Try<HexNumber<I> >, Try<DecNumber<I> > >, u64,
@@ -110,6 +110,7 @@ pub fn dec_number<I>() -> DecNumber<I> where I: Stream<Item = char> {
 
 #[cfg(test)]
 mod tests {
+    use entry::*;
     use combine::Parser;
 
     #[test]
@@ -120,5 +121,16 @@ mod tests {
 
         // Should this actually be octal?
         assert_eq!(Ok((314, "")), super::unsigned_number().parse("0314"));
+    }
+
+    #[test]
+    fn numerical_operators() {
+        assert_eq!(Ok((NumOp::Equal, "")),       super::numeric_operator().parse("="));
+        assert_eq!(Ok((NumOp::GreaterThan, "")), super::numeric_operator().parse(">"));
+        assert_eq!(Ok((NumOp::LessThan, "")),    super::numeric_operator().parse("<"));
+        assert_eq!(Ok((NumOp::Not, "")),         super::numeric_operator().parse("!"));
+        assert_eq!(Ok((NumOp::BitAnd, "")),      super::numeric_operator().parse("&"));
+        assert_eq!(Ok((NumOp::BitXor, "")),      super::numeric_operator().parse("^"));
+        assert_eq!(Ok((NumOp::BitNeg, "")),      super::numeric_operator().parse("~"));
     }
 }
