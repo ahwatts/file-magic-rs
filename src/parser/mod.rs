@@ -125,10 +125,8 @@ fn data_type<I>(input: I) -> CombParseResult<I, DataType>
 fn test_value<I: Stream<Item = char>>(input: I) -> CombParseResult<I, Test> {
     token('x').with(look_ahead(space())).map(|_| Test::AlwaysTrue)
         .or(try((optional(numeric_operator()), unsigned_number())
-                .skip(look_ahead(space()))
                 .map(|(op, n)| Test::Number { op: op.unwrap_or(NumOp::Equal), value: n })))
         .or(try((optional(string_operator()), many1::<String, _>(satisfy(|c| c != ' ' && c != '\t')))
-                .skip(look_ahead(space()))
                 .map(|(op, s)| Test::String { op: op.unwrap_or(StrOp::Equal), value: s })))
         .parse(input)
 }
@@ -186,5 +184,22 @@ mod tests {
         assert_eq!(Ok((Double(Native), "")), super::data_type("double"));
         assert_eq!(Ok((Double(Big),    "")), super::data_type("bedouble"));
         assert_eq!(Ok((Double(Little), "")), super::data_type("ledouble"));
+    }
+
+    #[test]
+    fn test_value() {
+        use entry::Test::*;
+
+        assert_eq!(Ok((AlwaysTrue, " ")), super::test_value("x "));
+
+        assert_eq!(Ok((Number { op: NumOp::Equal, value: 305 }, "")), super::test_value("305"));
+        assert_eq!(Ok((Number { op: NumOp::Equal, value: 305 }, "")), super::test_value("=305"));
+        assert_eq!(Ok((Number { op: NumOp::BitNeg, value: 305 }, "")), super::test_value("~305"));
+
+        assert_eq!(Ok((String { op: StrOp::Equal, value: "RIFF".to_string() }, "")), super::test_value("RIFF"));
+        assert_eq!(Ok((String { op: StrOp::Equal, value: "RIFF".to_string() }, "")), super::test_value("=RIFF"));
+
+        assert_eq!(Ok((Number { op: NumOp::GreaterThan, value: 48_879 }, "")), super::test_value(">0xBeef"));
+        assert_eq!(Ok((String { op: StrOp::LexAfter, value: "Beef".to_string() }, "")), super::test_value(">Beef"));
     }
 }
