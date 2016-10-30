@@ -51,6 +51,7 @@ fn parse_line<I>(line: I) -> CombParseResult<I, Option<MagicEntry>>
     }
 
     entry(line).map(|(ent, rest)| {
+        // println!("{:?}", ent);
         (Some(ent), rest)
     })
 }
@@ -116,17 +117,19 @@ fn data_type<I>(input: I) -> CombParseResult<I, DataType>
         try(string("double")  .with(value(Double(Native)))),
         try(string("bedouble").with(value(Double(Big)))),
         try(string("ledouble").with(value(Double(Little)))),
+
+        try(string("string").with(value(String))),
     ]).parse(input)
 }
 
 fn test_value<I: Stream<Item = char>>(input: I) -> CombParseResult<I, Test> {
     token('x').with(look_ahead(space())).map(|_| Test::AlwaysTrue)
-        .or((optional(numeric_operator()), unsigned_number())
-            .skip(look_ahead(space()))
-            .map(|(op, n)| Test::Number { op: op.unwrap_or(NumOp::Equal), value: n }))
-        .or(many1::<String, _>(satisfy(|c| c != ' ' && c != '\t'))
-            .skip(look_ahead(space()))
-            .map(|s| Test::String { op: StrOp::Equal, value: s }))
+        .or(try((optional(numeric_operator()), unsigned_number())
+                .skip(look_ahead(space()))
+                .map(|(op, n)| Test::Number { op: op.unwrap_or(NumOp::Equal), value: n })))
+        .or(try((optional(string_operator()), many1::<String, _>(satisfy(|c| c != ' ' && c != '\t')))
+                .skip(look_ahead(space()))
+                .map(|(op, s)| Test::String { op: op.unwrap_or(StrOp::Equal), value: s })))
         .parse(input)
 }
 

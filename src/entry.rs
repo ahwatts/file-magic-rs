@@ -86,6 +86,8 @@ pub enum DataType {
     Float(Endian),
     Double(Endian),
 
+    String,
+
     // Id3(Endian),
 
     // LongDate(Endian, TimeZone),

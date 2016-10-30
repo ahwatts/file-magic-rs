@@ -53,34 +53,53 @@ impl_parser! {
 }
 
 #[inline(always)]
-pub fn numeric_operator<I: Stream<Item = char> >() -> NumericOperator<I> {
+pub fn numeric_operator<I: Stream<Item = char>>() -> NumericOperator<I> {
     NumericOperator(one_of("=<>!&^~".chars()), PhantomData)
 }
 
+impl_parser! {
+    StringOperator(), char, OneOf<Chars<'static>, I>, StrOp,
+    |celf, input| {
+        celf.0.parse_lazy(input).map(|c| {
+            match c {
+                '=' => StrOp::Equal,
+                '>' => StrOp::LexAfter,
+                '<' => StrOp::LexBefore,
+                _ => unreachable!(),
+            }
+        })
+    }
+}
+
+#[inline(always)]
+pub fn string_operator<I: Stream<Item = char>>() -> StringOperator<I> {
+    StringOperator(one_of("=<>".chars()), PhantomData)
+}
+
 // impl_parser! {
-//     SignedNumber(), char, With<Token<I>, UnsignedNumber<I> >, i64,
+//     SignedNumber(), char, With<Token<I>, UnsignedNumber<I>>, i64,
 //     |celf, input| {
 //         celf.0.parse_lazy(input).map(|n| -1 * (n as i64))
 //     }
 // }
 
 // #[inline(always)]
-// pub fn signed_number<I: Stream<Item = char> >() -> SignedNumber<I> {
+// pub fn signed_number<I: Stream<Item = char>>() -> SignedNumber<I> {
 //     SignedNumber(token('-').with(unsigned_number()), PhantomData)
 // }
 
 impl_parser! {
-    UnsignedNumber(), char, Or<Try<HexNumber<I> >, Try<DecNumber<I> > >, u64,
+    UnsignedNumber(), char, Or<Try<HexNumber<I>>, Try<DecNumber<I>>>, u64,
     |celf, input| { celf.0.parse_lazy(input) }
 }
 
 #[inline(always)]
-pub fn unsigned_number<I: Stream<Item = char> >() -> UnsignedNumber<I> {
+pub fn unsigned_number<I: Stream<Item = char>>() -> UnsignedNumber<I> {
     UnsignedNumber(try(hex_number()).or(try(dec_number())), PhantomData)
 }
 
 impl_parser! {
-    HexNumber(), char, With<Str<I>, Many1<String, HexDigit<I> > >, u64,
+    HexNumber(), char, With<Str<I>, Many1<String, HexDigit<I>>>, u64,
     |celf, input| {
         celf.0.parse_lazy(input).map(|hex_str| {
             u64::from_str_radix(&hex_str, 16).unwrap()
@@ -94,7 +113,7 @@ pub fn hex_number<I>() -> HexNumber<I> where I: Stream<Item = char> {
 }
 
 impl_parser! {
-    DecNumber(), char, Many1<String, Digit<I> >, u64,
+    DecNumber(), char, Many1<String, Digit<I>>, u64,
     |celf, input| {
         use std::str::FromStr;
         celf.0.parse_lazy(input).map(|dec_str| {
