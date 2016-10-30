@@ -126,9 +126,27 @@ pub enum Endian {
 //     Utc,
 // }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NumOp {
+    Equal,
+    LessThan,
+    GreaterThan,
+    Not,
+    BitAnd,
+    BitXor,
+    BitNeg,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StrOp {
+    Equal,
+    LexBefore,
+    LexAfter,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Test {
     AlwaysTrue,
-    Number(u64),
-    String(String),
+    Number { op: NumOp, value: u64 },
+    String { op: StrOp, value: String },
 }
