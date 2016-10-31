@@ -152,4 +152,11 @@ mod tests {
         assert_eq!(Ok((NumOp::BitXor, "")),      super::numeric_operator().parse("^"));
         assert_eq!(Ok((NumOp::BitNeg, "")),      super::numeric_operator().parse("~"));
     }
+
+    #[test]
+    fn string_operators() {
+        assert_eq!(Ok((StrOp::Equal, "")), super::string_operator().parse("="));
+        assert_eq!(Ok((StrOp::LexBefore, "")), super::string_operator().parse("<"));
+        assert_eq!(Ok((StrOp::LexAfter, "")), super::string_operator().parse(">"));
+    }
 }

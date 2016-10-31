@@ -1,3 +1,5 @@
+use std::io::{self, Read, Seek, SeekFrom};
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MagicEntry {
     pub level: u32,
@@ -5,6 +7,13 @@ pub struct MagicEntry {
     pub data_type: DataType,
     pub test: Test,
     pub message: String,
+}
+
+impl MagicEntry {
+    pub fn matches<F: Read + Seek>(&self, file: &mut F) -> io::Result<bool> {
+        try!(self.offset.seek_to(file));
+        unimplemented!();
+    }
 }
 
 // 123     123 bytes from the start
@@ -40,6 +49,15 @@ impl Offset {
     // pub fn relative_indirect(base: IndirectOffset) -> Offset {
     //     Offset::RelativeIndirect(base)
     // }
+
+    pub fn seek_to<F: Seek>(&self, file: &mut F) -> io::Result<()> {
+        match self {
+            &Offset::Direct(DirectOffset::Absolute(off)) => {
+                try!(file.seek(SeekFrom::Start(off)));
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -151,4 +169,10 @@ pub enum Test {
     AlwaysTrue,
     Number { op: NumOp, value: u64 },
     String { op: StrOp, value: String },
+}
+
+impl Test {
+    pub fn matches<F: Read + Seek>(&self, _file: &mut F) -> bool {
+        unimplemented!()
+    }
 }
