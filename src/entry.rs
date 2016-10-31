@@ -1,6 +1,6 @@
 use std::io::{self, Read, Seek, SeekFrom};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, RustcEncodable, RustcDecodable)]
 pub struct MagicEntry {
     pub level: u32,
     pub offset: Offset,
@@ -14,6 +14,24 @@ impl MagicEntry {
         try!(self.offset.seek_to(file));
         unimplemented!();
     }
+
+    pub fn magic_length(&self) -> usize {
+        use self::DataType::*;
+
+        match self.data_type {
+            Byte { .. }  => 1,
+            Short { .. } => 2,
+            Long { .. } | Float(..)  => 4,
+            Quad { .. } | Double(..) => 8,
+            String => {
+                if let Test::String { op: _, value: ref s } = self.test {
+                    s.len()
+                } else {
+                    panic!("String data type with non-string test value!")
+                }
+            },
+        }
+    }
 }
 
 // 123     123 bytes from the start
@@ -22,7 +40,7 @@ impl MagicEntry {
 // (&123)  (the value at 123 bytes from here) bytes from the start
 // &(123)  (the value at 123 bytes from the start) bytes from here
 // &(&123) (the value at 123 bytes from here) bytes from here
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, RustcEncodable, RustcDecodable)]
 pub enum Offset {
     Direct(DirectOffset),
     // AbsoluteIndirect(IndirectOffset),
@@ -60,7 +78,7 @@ impl Offset {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, RustcEncodable, RustcDecodable)]
 pub enum DirectOffset {
     Absolute(u64),
     // Relative(i64),
@@ -95,7 +113,7 @@ impl DirectOffset {
 //     Pdp11Endian,
 // }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, RustcEncodable, RustcDecodable)]
 pub enum DataType {
     Byte  {                 signed: bool },
     Short { endian: Endian, signed: bool },
@@ -132,7 +150,7 @@ impl DataType {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, RustcEncodable, RustcDecodable)]
 pub enum Endian {
     Little,
     Big,
@@ -146,7 +164,7 @@ pub enum Endian {
 //     Utc,
 // }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, RustcEncodable, RustcDecodable)]
 pub enum NumOp {
     Equal,
     LessThan,
@@ -157,14 +175,14 @@ pub enum NumOp {
     BitNeg,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, RustcEncodable, RustcDecodable)]
 pub enum StrOp {
     Equal,
     LexBefore,
     LexAfter,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, RustcEncodable, RustcDecodable)]
 pub enum Test {
     AlwaysTrue,
     Number { op: NumOp, value: u64 },

@@ -8,4 +8,8 @@ name = "compile"
 path = "src/bin/compile.rs"
 
 [dependencies]
+byteorder = "^0.5.3"
 combine = "^2.0.0"
+rustc-serialize = "^0.3.19"
+rmp = "^0.7.5"
+rmp-serialize = "^0.7.0"
