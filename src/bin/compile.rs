@@ -12,7 +12,6 @@ fn main() {
     let filename = env::args().skip(1).next().expect("No filename argument.");
     let mut file = File::open(filename).unwrap();
 
-    // let result = parser::parse(&mut file);
     match parser::parse(&mut file) {
         Ok(entries) => {
             for entry in entries.iter() {
@@ -21,9 +20,7 @@ fn main() {
 
             let mut output_file = File::create("magic.mgc.mpk").unwrap();
             let mut encoder = rmp::Encoder::new(&mut output_file);
-            for entry in entries.iter() {
-                entry.encode(&mut encoder).unwrap();
-            }
+            entries.encode(&mut encoder).unwrap();
         },
         Err(err) => {
             println!("{}", err);

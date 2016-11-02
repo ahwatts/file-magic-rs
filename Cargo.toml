@@ -7,6 +7,10 @@ authors = ["Andrew Watts <ahwatts@gmail.com>"]
 name = "compile"
 path = "src/bin/compile.rs"
 
+[[bin]]
+name = "file"
+path = "src/bin/file.rs"
+
 [dependencies]
 byteorder = "^0.5.3"
 combine = "^2.0.0"
