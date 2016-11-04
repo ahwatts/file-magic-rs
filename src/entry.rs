@@ -1,7 +1,12 @@
-use std::io::{self, Read, Seek, SeekFrom};
+use byteorder::*;
+use endian::*;
+use std::io::{self, Cursor, Read, Seek, SeekFrom};
+use std::iter;
 
 #[derive(Clone, Debug, PartialEq, Eq, RustcEncodable, RustcDecodable)]
 pub struct MagicEntry {
+    pub filename: String,
+    pub line_num: usize,
     pub level: u32,
     pub offset: Offset,
     pub data_type: DataType,
@@ -12,10 +17,66 @@ pub struct MagicEntry {
 impl MagicEntry {
     pub fn matches<F: Read + Seek>(&self, file: &mut F) -> io::Result<bool> {
         try!(self.offset.seek_to(file));
-        unimplemented!();
+
+        let mut file_value: Vec<u8> = iter::repeat(0u8).take(self.magic_len()).collect();
+        try!(file.read_exact(&mut file_value));
+
+        println!("file value = {:?}", file_value);
+        println!("test value = {:?}", self.test);
+
+        match self.test {
+            Test::AlwaysTrue => Ok(true),
+            Test::Number { op, value } => Ok(self.number_match(op, value, &file_value)),
+            Test::String {..} => Ok(false),
+        }
     }
 
-    pub fn magic_length(&self) -> usize {
+    fn number_match(&self, op: NumOp, test_value: u64, file_bytes: &[u8]) -> bool {
+        let file_value = self.extract_numeric_value(file_bytes);
+        println!("file value (extracted) = {:?}", file_value);
+
+        match op {
+            NumOp::Equal       => file_value == test_value as i64,
+            NumOp::GreaterThan => file_value >  test_value as i64,
+            NumOp::LessThan    => file_value <  test_value as i64,
+            NumOp::Not         => file_value != test_value as i64,
+            NumOp::BitAnd      => (file_value & test_value as i64) > 0,
+            NumOp::BitXor      => (file_value ^ test_value as i64) > 0,
+            NumOp::BitNeg      => unimplemented!(),
+        }
+    }
+
+    fn extract_numeric_value(&self, file_value: &[u8]) -> i64 {
+        use self::DataType::*;
+        use endian::Endian::*;
+
+        let mut reader = Cursor::new(file_value);
+
+        match self.data_type {
+            Short { endian: Pdp11, signed: _ } => panic!("Middle (PDP-11) endian with short data type"),
+            Quad  { endian: Pdp11, signed: _ } => panic!("Middle (PDP-11) endian with quad data type"),
+            Double(Pdp11)  => panic!("Middle (PDP-11) endian with double data type"),
+
+            Byte { signed: true  } => reader.read_i8().unwrap() as i64,
+            Byte { signed: false } => reader.read_u8().unwrap() as i64,
+
+            Short { endian: e, signed: true  } => e.read_i16(&mut reader).unwrap() as i64,
+            Short { endian: e, signed: false } => e.read_u16(&mut reader).unwrap() as i64,
+
+            Long { endian: e, signed: true  } => e.read_i32(&mut reader).unwrap() as i64,
+            Long { endian: e, signed: false } => e.read_u32(&mut reader).unwrap() as i64,
+
+            Quad { endian: e, signed: true  } => e.read_i64(&mut reader).unwrap() as i64,
+            Quad { endian: e, signed: false } => e.read_u64(&mut reader).unwrap() as i64,
+
+            Float(e) => e.read_f32(&mut reader).unwrap() as i64,
+            Double(e) => e.read_f64(&mut reader).unwrap() as i64,
+
+            String => panic!("String data type with a numeric test value!"),
+        }
+    }
+
+    fn magic_len(&self) -> usize {
         use self::DataType::*;
 
         match self.data_type {
@@ -113,9 +174,9 @@ impl DirectOffset {
 //     Pdp11Endian,
 // }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Debug, PartialEq, Eq, RustcEncodable, RustcDecodable)]
 pub enum DataType {
-    Byte  {                 signed: bool },
+    Byte  {                         signed: bool },
     Short { endian: Endian, signed: bool },
     Long  { endian: Endian, signed: bool },
     Quad  { endian: Endian, signed: bool },
@@ -150,14 +211,6 @@ impl DataType {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, RustcEncodable, RustcDecodable)]
-pub enum Endian {
-    Little,
-    Big,
-    Native,
-    Pdp11,
-}
-
 // #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 // pub enum TimeZone {
 //     Local,
@@ -187,10 +240,4 @@ pub enum Test {
     AlwaysTrue,
     Number { op: NumOp, value: u64 },
     String { op: StrOp, value: String },
-}
-
-impl Test {
-    pub fn matches<F: Read + Seek>(&self, _file: &mut F) -> bool {
-        unimplemented!()
-    }
 }

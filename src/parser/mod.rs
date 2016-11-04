@@ -1,18 +1,20 @@
 use combine::*;
 use combine::char::*;
 use entry::*;
+use error::{MagicError, MagicResult};
+use magic::*;
 use self::parsers::*;
 use std::io::{BufRead, BufReader, Read};
 
 mod parsers;
 
-pub fn parse<R: Read>(input: &mut R) -> Result<Vec<MagicEntry>, String> {
+pub fn parse_set<R: Read>(filename: String, input: &mut R) -> MagicResult<MagicSet> {
     let mut entries = Vec::new();
     let buf_input = BufReader::new(input);
 
     for (line_num_minus_one, line_rslt) in buf_input.lines().enumerate() {
         let line_num = line_num_minus_one + 1;
-        let line = try!(line_rslt.map_err(|e| format!("I/O Error: {}", e)));
+        let line = try!(line_rslt);
 
         match parse_line(line.as_str()) {
             Ok((Some(entry), rest)) => {
@@ -27,12 +29,14 @@ pub fn parse<R: Read>(input: &mut R) -> Result<Vec<MagicEntry>, String> {
                 }
             },
             Err(err) => {
-                return Err(format!("Parse error on line {}: {}", line_num, err));
+                return Err(MagicError::Parse(format!("Parse error on line {}: {}", line_num, err)));
             }
         }
     }
 
-    Ok(entries)
+    let mut set = MagicSet::new(filename);
+    set.add_entries(entries);
+    Ok(set)
 }
 
 type CombParseResult<I, O> = Result<(O, I), ParseError<I>>;
@@ -70,6 +74,8 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
 
     Ok((
         MagicEntry {
+            filename: String::new(),
+            line_num: 0,
             level: level as u32,
             offset: offset,
             data_type: data_type,
@@ -92,7 +98,7 @@ fn data_type<I>(input: I) -> CombParseResult<I, DataType>
     where I: Stream<Item = char>
 {
     use entry::DataType::*;
-    use entry::Endian::*;
+    use endian::Endian::*;
 
     choice([
         try(string("byte").with(value(Byte { signed: true }))),
@@ -160,7 +166,7 @@ mod tests {
     #[test]
     fn data_type() {
         use entry::DataType::*;
-        use entry::Endian::*;
+        use endian::Endian::*;
 
         assert_eq!(Ok((Byte { signed: true }, "")), super::data_type("byte"));
 
