@@ -47,7 +47,7 @@ fn parse_line<I>(line: I) -> CombParseResult<I, Option<MagicEntry>>
     where I: Stream<Item = char> + Clone
 {
     let blank = (spaces(), eof()).map(|_| None);
-    let comment = (spaces(), token('#'), many::<String, _>(try(any()))).map(|_| None);
+    let comment = (spaces(), token('#').or(token('!')), many::<String, _>(try(any()))).map(|_| None);
     let mut ignorer = try(blank).or(comment);
 
     match ignorer.parse(line.clone()) {
@@ -72,7 +72,7 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
     let (_, rest) = try!(spaces().parse(rest));
     let (test_val, rest) = try!(test_value(rest));
     let (_, rest) = try!(spaces().parse(rest));
-    let ((message, _), rest) = try!((many1::<String, _>(try(any())), eof()).parse(rest));
+    let ((message, _), rest) = try!((many::<String, _>(try(any())), eof()).parse(rest));
 
     Ok((
         MagicEntry {
