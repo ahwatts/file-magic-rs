@@ -17,7 +17,9 @@ pub fn parse_set<R: Read>(filename: String, input: &mut R) -> MagicResult<MagicS
         let line = try!(line_rslt);
 
         match parse_line(line.as_str()) {
-            Ok((Some(entry), rest)) => {
+            Ok((Some(mut entry), rest)) => {
+                entry.filename = filename.clone();
+                entry.line_num = line_num;
                 entries.push(entry);
                 if rest.len() > 0 {
                     println!("Parsed an entry on line {}, but had leftover content: {:?}", line_num, rest);
@@ -35,7 +37,7 @@ pub fn parse_set<R: Read>(filename: String, input: &mut R) -> MagicResult<MagicS
     }
 
     let mut set = MagicSet::new(filename);
-    set.add_entries(entries);
+    try!(set.add_entries(entries));
     Ok(set)
 }
 

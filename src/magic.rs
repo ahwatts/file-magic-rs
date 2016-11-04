@@ -4,6 +4,7 @@ use entry::MagicEntry;
 use error::{MagicError, MagicResult};
 use std::iter::Peekable;
 
+#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
 pub struct MagicSet {
     filename: String,
     lists: Vec<MagicList>,
@@ -40,6 +41,7 @@ impl MagicSet {
     }
 }
 
+#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
 struct MagicList {
     filename: String,
     root: MagicEntry,

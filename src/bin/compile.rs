@@ -7,20 +7,22 @@ use std::env;
 use std::fs::File;
 use rmp_serialize as rmp;
 use rustc_serialize::Encodable;
+use std::path::PathBuf;
 
 fn main() {
-    let filename = env::args().skip(1).next().expect("No filename argument.");
-    let mut file = File::open(filename).unwrap();
+    let file_path = PathBuf::from(env::args().skip(1).next().expect("No filename argument."));
+    let mut file = File::open(&file_path).unwrap();
+    let file_name = file_path.file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_string();
 
-    match parser::parse(&mut file) {
-        Ok(entries) => {
-            for entry in entries.iter() {
-                println!("{:?}", entry);
-            }
-
+    match parser::parse_set(file_name, &mut file) {
+        Ok(set) => {
+            println!("{:#?}", set);
             let mut output_file = File::create("magic.mgc.mpk").unwrap();
             let mut encoder = rmp::Encoder::new(&mut output_file);
-            entries.encode(&mut encoder).unwrap();
+            set.encode(&mut encoder).unwrap();
         },
         Err(err) => {
             println!("{}", err);
