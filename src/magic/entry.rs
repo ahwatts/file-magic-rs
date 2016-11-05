@@ -39,7 +39,7 @@ impl MagicEntry {
         }
     }
 
-    fn number_match(&self, op: NumOp, test_value: u64, file_bytes: &[u8]) -> bool {
+    fn number_match(&self, op: NumOp, test_value: Numeric, file_bytes: &[u8]) -> bool {
         let file_value = self.extract_numeric_value(file_bytes);
         println!("file value (extracted) = {:?}", file_value);
 
@@ -54,8 +54,9 @@ impl MagicEntry {
         }
     }
 
-    fn extract_numeric_value(&self, file_value: &[u8]) -> i64 {
+    fn extract_numeric_value(&self, file_value: &[u8]) -> Numeric {
         use self::DataType::*;
+        use self::Numeric::*;
         use endian::Endian::*;
 
         let mut reader = Cursor::new(file_value);
@@ -65,20 +66,20 @@ impl MagicEntry {
             Quad  { endian: Pdp11, signed: _ } => panic!("Middle (PDP-11) endian with quad data type"),
             Double(Pdp11)  => panic!("Middle (PDP-11) endian with double data type"),
 
-            Byte { signed: true  } => reader.read_i8().unwrap() as i64,
-            Byte { signed: false } => reader.read_u8().unwrap() as i64,
+            Byte { signed: true  } =>   SignedInt(reader.read_i8().unwrap() as i64),
+            Byte { signed: false } => UnsignedInt(reader.read_u8().unwrap() as u64),
 
-            Short { endian: e, signed: true  } => e.read_i16(&mut reader).unwrap() as i64,
-            Short { endian: e, signed: false } => e.read_u16(&mut reader).unwrap() as i64,
+            Short { endian: e, signed: true  } =>   SignedInt(e.read_i16(&mut reader).unwrap() as i64),
+            Short { endian: e, signed: false } => UnsignedInt(e.read_u16(&mut reader).unwrap() as u64),
 
-            Long { endian: e, signed: true  } => e.read_i32(&mut reader).unwrap() as i64,
-            Long { endian: e, signed: false } => e.read_u32(&mut reader).unwrap() as i64,
+            Long { endian: e, signed: true  } =>   SignedInt(e.read_i32(&mut reader).unwrap() as i64),
+            Long { endian: e, signed: false } => UnsignedInt(e.read_u32(&mut reader).unwrap() as u64),
 
-            Quad { endian: e, signed: true  } => e.read_i64(&mut reader).unwrap() as i64,
-            Quad { endian: e, signed: false } => e.read_u64(&mut reader).unwrap() as i64,
+            Quad { endian: e, signed: true  } =>   SignedInt(e.read_i64(&mut reader).unwrap() as i64),
+            Quad { endian: e, signed: false } => UnsignedInt(e.read_u64(&mut reader).unwrap() as u64),
 
-            Float(e) => e.read_f32(&mut reader).unwrap() as i64,
-            Double(e) => e.read_f64(&mut reader).unwrap() as i64,
+            Float(e)  => FloatingPoint(e.read_f32(&mut reader).unwrap() as f64),
+            Double(e) => FloatingPoint(e.read_f64(&mut reader).unwrap() as f64),
 
             String => panic!("String data type with a numeric test value!"),
         }
@@ -243,9 +244,26 @@ pub enum StrOp {
     LexAfter,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
 pub enum Test {
     AlwaysTrue,
-    Number { op: NumOp, value: u64 },
+    Number { op: NumOp, value: Numeric },
     String { op: StrOp, value: String },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, RustcEncodable, RustcDecodable)]
+pub enum Numeric {
+    SignedInt(i64),
+    UnsignedInt(u64),
+    FloatingPoint(f64),
+}
+
+impl Numeric {
+    pub fn matches(&self, op: NumOp, other: &Numeric) -> bool {
+        use self::Numeric::*;
+
+        match (self, other) {
+            (&SignedInt(lhs), &SignedInt(rhs)) => lhs == rhs,
+        }
+    }
 }

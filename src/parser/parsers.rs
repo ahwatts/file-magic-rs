@@ -76,30 +76,35 @@ pub fn string_operator<I: Stream<Item = char>>() -> StringOperator<I> {
     StringOperator(one_of("=<>".chars()), PhantomData)
 }
 
-// impl_parser! {
-//     SignedNumber(), char, With<Token<I>, UnsignedNumber<I>>, i64,
-//     |celf, input| {
-//         celf.0.parse_lazy(input).map(|n| -1 * (n as i64))
-//     }
-// }
+impl_parser! {
+    SignedInteger(), char, (Optional<Token<I>>, UnsignedInteger<I>), i64,
+    |celf, input| {
+        celf.0.parse_lazy(input).map(|(neg, num)| {
+            match neg {
+                Some(..) => -1 * (num as i64),
+                None => num as i64
+            }
+        })
+    }
+}
 
-// #[inline(always)]
-// pub fn signed_number<I: Stream<Item = char>>() -> SignedNumber<I> {
-//     SignedNumber(token('-').with(unsigned_number()), PhantomData)
-// }
+#[inline(always)]
+pub fn signed_integer<I: Stream<Item = char>>() -> SignedInteger<I> {
+    SignedInteger((optional(token('-')), unsigned_integer()), PhantomData)
+}
 
 impl_parser! {
-    UnsignedNumber(), char, Or<Try<HexNumber<I>>, Try<DecNumber<I>>>, u64,
+    UnsignedInteger(), char, Or<Try<HexInteger<I>>, Try<DecInteger<I>>>, u64,
     |celf, input| { celf.0.parse_lazy(input) }
 }
 
 #[inline(always)]
-pub fn unsigned_number<I: Stream<Item = char>>() -> UnsignedNumber<I> {
-    UnsignedNumber(try(hex_number()).or(try(dec_number())), PhantomData)
+pub fn unsigned_integer<I: Stream<Item = char>>() -> UnsignedInteger<I> {
+    UnsignedInteger(try(hex_integer()).or(try(dec_integer())), PhantomData)
 }
 
 impl_parser! {
-    HexNumber(), char, With<Str<I>, Many1<String, HexDigit<I>>>, u64,
+    HexInteger(), char, With<Str<I>, Many1<String, HexDigit<I>>>, u64,
     |celf, input| {
         celf.0.parse_lazy(input).map(|hex_str| {
             u64::from_str_radix(&hex_str, 16).unwrap()
@@ -108,12 +113,12 @@ impl_parser! {
 }
 
 #[inline(always)]
-pub fn hex_number<I>() -> HexNumber<I> where I: Stream<Item = char> {
-    HexNumber(string("0x").with(many1::<String, _>(hex_digit())), PhantomData)
+pub fn hex_integer<I>() -> HexInteger<I> where I: Stream<Item = char> {
+    HexInteger(string("0x").with(many1::<String, _>(hex_digit())), PhantomData)
 }
 
 impl_parser! {
-    DecNumber(), char, Many1<String, Digit<I>>, u64,
+    DecInteger(), char, Many1<String, Digit<I>>, u64,
     |celf, input| {
         use std::str::FromStr;
         celf.0.parse_lazy(input).map(|dec_str| {
@@ -123,8 +128,8 @@ impl_parser! {
 }
 
 #[inline(always)]
-pub fn dec_number<I>() -> DecNumber<I> where I: Stream<Item = char> {
-    DecNumber(many1::<String, _>(digit()), PhantomData)
+pub fn dec_integer<I>() -> DecInteger<I> where I: Stream<Item = char> {
+    DecInteger(many1::<String, _>(digit()), PhantomData)
 }
 
 #[cfg(test)]
@@ -133,13 +138,13 @@ mod tests {
     use combine::Parser;
 
     #[test]
-    fn numbers() {
-        assert_eq!(Ok((3_551_379_183, "")), super::unsigned_number().parse("0xd3adBEEF"));
-        assert_eq!(Ok((314, "")), super::unsigned_number().parse("314"));
-        assert_eq!(Ok((0, "")), super::unsigned_number().parse("0"));
+    fn integers() {
+        assert_eq!(Ok((3_551_379_183, "")), super::unsigned_integer().parse("0xd3adBEEF"));
+        assert_eq!(Ok((314, "")), super::unsigned_integer().parse("314"));
+        assert_eq!(Ok((0, "")), super::unsigned_integer().parse("0"));
 
         // Should this actually be octal?
-        assert_eq!(Ok((314, "")), super::unsigned_number().parse("0314"));
+        assert_eq!(Ok((314, "")), super::unsigned_integer().parse("0314"));
     }
 
     #[test]
