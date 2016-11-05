@@ -2,6 +2,7 @@
 
 use error::{MagicError, MagicResult};
 use std::iter::Peekable;
+use std::io::{Read, Seek};
 
 pub use self::entry::*;
 
@@ -42,6 +43,20 @@ impl MagicSet {
 
         Ok(())
     }
+
+    pub fn matches<F: Read + Seek>(&self, file: &mut F) -> MagicResult<MatchResult> {
+        use self::MatchResult::*;
+
+        for list in self.lists.iter() {
+            match list.matches(file) {
+                v @ Ok(Matches(..)) => return v,
+                Ok(NoMatch) => {},
+                v @ Err(..) => return v,
+            }
+        }
+
+        Ok(NoMatch)
+    }
 }
 
 #[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
@@ -81,4 +96,29 @@ impl MagicList {
 
         Ok(())
     }
+
+    pub fn matches<F: Read + Seek>(&self, file: &mut F) -> MagicResult<MatchResult> {
+        use self::MatchResult::*;
+
+        let root_match = try!(self.root.matches(file));
+        match root_match {
+            Matches(root_message) => {
+                let mut message = Vec::new();
+                message.push(root_message);
+                for entry in self.children.iter() {
+                    if let Matches(child_message) = try!(entry.matches(file)) {
+                        message.push(child_message);
+                    }
+                }
+                Ok(Matches(message.join(", ")))
+            },
+            NoMatch => Ok(NoMatch),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MatchResult {
+    Matches(String),
+    NoMatch,
 }

@@ -16,11 +16,5 @@ fn main() {
     let mut decoder = rmp::Decoder::new(&mut rules_file);
     let magic = MagicSet::decode(&mut decoder).unwrap();
 
-    println!("magic = {:?}", magic);
-
-    // for rule in rules.iter() {
-    //     println!("rule {:?}", rule);
-    //     println!("match? {:?}", rule.matches(&mut file));
-    //     println!("");
-    // }
+    println!("{:?}", magic.matches(&mut file));
 }

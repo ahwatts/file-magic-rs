@@ -2,6 +2,8 @@ use byteorder::*;
 use endian::*;
 use std::io::{self, Cursor, Read, Seek, SeekFrom};
 use std::iter;
+use super::MatchResult;
+use error::MagicResult;
 
 #[derive(Clone, Debug, PartialEq, Eq, RustcEncodable, RustcDecodable)]
 pub struct MagicEntry {
@@ -15,7 +17,7 @@ pub struct MagicEntry {
 }
 
 impl MagicEntry {
-    pub fn matches<F: Read + Seek>(&self, file: &mut F) -> io::Result<bool> {
+    pub fn matches<F: Read + Seek>(&self, file: &mut F) -> MagicResult<MatchResult> {
         try!(self.offset.seek_to(file));
 
         let mut file_value: Vec<u8> = iter::repeat(0u8).take(self.magic_len()).collect();
@@ -25,9 +27,15 @@ impl MagicEntry {
         println!("test value = {:?}", self.test);
 
         match self.test {
-            Test::AlwaysTrue => Ok(true),
-            Test::Number { op, value } => Ok(self.number_match(op, value, &file_value)),
-            Test::String {..} => Ok(false),
+            Test::AlwaysTrue => Ok(MatchResult::Matches(self.message.clone())),
+            Test::Number { op, value } => {
+                if self.number_match(op, value, &file_value) {
+                    Ok(MatchResult::Matches(self.message.clone()))
+                } else {
+                    Ok(MatchResult::NoMatch)
+                }
+            },
+            Test::String {..} => Ok(MatchResult::NoMatch),
         }
     }
 
