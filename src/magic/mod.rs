@@ -1,8 +1,11 @@
 #![allow(dead_code)]
 
-use entry::MagicEntry;
 use error::{MagicError, MagicResult};
 use std::iter::Peekable;
+
+pub use self::entry::*;
+
+mod entry;
 
 #[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
 pub struct MagicSet {

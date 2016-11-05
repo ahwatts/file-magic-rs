@@ -1,7 +1,7 @@
 use combine::{ConsumedResult, ParseError, Parser, Stream};
 use combine::char::*;
 use combine::combinator::*;
-use entry::*;
+use magic::*;
 use std::marker::PhantomData;
 use std::str::Chars;
 
@@ -129,7 +129,7 @@ pub fn dec_number<I>() -> DecNumber<I> where I: Stream<Item = char> {
 
 #[cfg(test)]
 mod tests {
-    use entry::*;
+    use magic::*;
     use combine::Parser;
 
     #[test]

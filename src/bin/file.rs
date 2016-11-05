@@ -2,7 +2,7 @@ extern crate file_magic;
 extern crate rmp_serialize;
 extern crate rustc_serialize;
 
-use file_magic::entry::*;
+use file_magic::magic::MagicSet;
 use rmp_serialize as rmp;
 use rustc_serialize::Decodable;
 use std::env;
@@ -14,11 +14,13 @@ fn main() {
 
     let mut rules_file = File::open("magic.mgc.mpk").unwrap();
     let mut decoder = rmp::Decoder::new(&mut rules_file);
-    let rules = Vec::<MagicEntry>::decode(&mut decoder).unwrap();
+    let magic = MagicSet::decode(&mut decoder).unwrap();
 
-    for rule in rules.iter() {
-        println!("rule {:?}", rule);
-        println!("match? {:?}", rule.matches(&mut file));
-        println!("");
-    }
+    println!("magic = {:?}", magic);
+
+    // for rule in rules.iter() {
+    //     println!("rule {:?}", rule);
+    //     println!("match? {:?}", rule.matches(&mut file));
+    //     println!("");
+    // }
 }

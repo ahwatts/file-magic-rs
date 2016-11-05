@@ -1,8 +1,7 @@
 use combine::*;
 use combine::char::*;
-use entry::*;
-use error::{MagicError, MagicResult};
 use magic::*;
+use error::{MagicError, MagicResult};
 use self::parsers::*;
 use std::io::{BufRead, BufReader, Read};
 
@@ -99,7 +98,7 @@ fn offset<I>(input: I) -> CombParseResult<I, Offset>
 fn data_type<I>(input: I) -> CombParseResult<I, DataType>
     where I: Stream<Item = char>
 {
-    use entry::DataType::*;
+    use magic::DataType::*;
     use endian::Endian::*;
 
     choice([
@@ -141,7 +140,7 @@ fn test_value<I: Stream<Item = char>>(input: I) -> CombParseResult<I, Test> {
 
 #[cfg(test)]
 mod tests {
-    use entry::*;
+    use magic::*;
 
     #[test]
     fn ignores_blank_lines() {
@@ -167,7 +166,7 @@ mod tests {
 
     #[test]
     fn data_type() {
-        use entry::DataType::*;
+        use magic::DataType::*;
         use endian::Endian::*;
 
         assert_eq!(Ok((Byte { signed: true }, "")), super::data_type("byte"));
@@ -196,7 +195,7 @@ mod tests {
 
     #[test]
     fn test_value() {
-        use entry::Test::*;
+        use magic::Test::*;
 
         assert_eq!(Ok((AlwaysTrue, " ")), super::test_value("x "));
 
