@@ -5,8 +5,12 @@ use std::iter::Peekable;
 use std::io::{Read, Seek};
 
 pub use self::entry::*;
+pub use self::offset::*;
+pub use self::test::*;
 
 mod entry;
+mod offset;
+mod test;
 
 #[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
 pub struct MagicSet {

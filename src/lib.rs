@@ -1,5 +1,6 @@
 extern crate byteorder;
 extern crate combine;
+extern crate num;
 extern crate rmp_serialize;
 extern crate rustc_serialize;
 
