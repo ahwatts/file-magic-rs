@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use error::{MagicError, MagicResult};
 use std::iter::Peekable;
 use std::io::{Read, Seek};
