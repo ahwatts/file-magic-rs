@@ -1,10 +1,12 @@
 use combine::char::*;
 use combine::combinator::*;
 use combine::{ConsumedResult, ParseError, Parser, Stream};
+use endian::Endian;
 use magic::*;
+use std::io::{self, ErrorKind};
 use std::marker::PhantomData;
 use std::str::Chars;
-use super::DataType;
+use super::ast;
 
 macro_rules! impl_parser {
     (
@@ -56,9 +58,82 @@ pub fn numeric_operator<I: Stream<Item = char>>() -> NumericOperator<I> {
 }
 
 #[derive(Clone)]
+pub struct DataType<I: Stream<Item = char>> {
+    parser: AndThen<Many1<String, AlphaNum<I>>, fn(String) -> io::Result<ast::DataType>>,
+    _marker: PhantomData<fn(I) -> I>
+}
+
+impl<I: Stream<Item = char>> Parser for DataType<I> {
+    type Input = I;
+    type Output = ast::DataType;
+
+    #[inline]
+    fn parse_lazy(&mut self, input: Self::Input) -> ConsumedResult<Self::Output, Self::Input> {
+        self.parser.parse_lazy(input)
+    }
+
+    fn add_error(&mut self, errors: &mut ParseError<Self::Input>) {
+        self.parser.add_error(errors)
+    }
+}
+
+pub fn data_type<I: Stream<Item = char>>() -> DataType<I> {
+    DataType {
+        parser: many1::<String, _>(alpha_num()).and_then(translate_data_type_value),
+        _marker: PhantomData,
+    }
+}
+
+fn translate_data_type_value(val: String) -> io::Result<ast::DataType> {
+    match val.as_ref() {
+        "byte"  => Ok(ast::DataType::Byte  { signed: true }),
+
+        "short"   => Ok(ast::DataType::Short { endian: Endian::Native, signed: true }),
+        "beshort" => Ok(ast::DataType::Short { endian: Endian::Big,    signed: true }),
+        "leshort" => Ok(ast::DataType::Short { endian: Endian::Little, signed: true }),
+
+        "long"   => Ok(ast::DataType::Long { endian: Endian::Native, signed: true }),
+        "belong" => Ok(ast::DataType::Long { endian: Endian::Big,    signed: true }),
+        "lelong" => Ok(ast::DataType::Long { endian: Endian::Little, signed: true }),
+        "melong" => Ok(ast::DataType::Long { endian: Endian::Pdp11,  signed: true }),
+
+        "quad"   => Ok(ast::DataType::Quad { endian: Endian::Native, signed: true }),
+        "bequad" => Ok(ast::DataType::Quad { endian: Endian::Big,    signed: true }),
+        "lequad" => Ok(ast::DataType::Quad { endian: Endian::Little, signed: true }),
+
+        "ubyte"  => Ok(ast::DataType::Byte  { signed: false }),
+
+        "ushort"   => Ok(ast::DataType::Short { endian: Endian::Native, signed: false }),
+        "ubeshort" => Ok(ast::DataType::Short { endian: Endian::Big,    signed: false }),
+        "uleshort" => Ok(ast::DataType::Short { endian: Endian::Little, signed: false }),
+
+        "ulong"   => Ok(ast::DataType::Long { endian: Endian::Native, signed: false }),
+        "ubelong" => Ok(ast::DataType::Long { endian: Endian::Big,    signed: false }),
+        "ulelong" => Ok(ast::DataType::Long { endian: Endian::Little, signed: false }),
+        "umelong" => Ok(ast::DataType::Long { endian: Endian::Pdp11,  signed: false }),
+
+        "uquad"   => Ok(ast::DataType::Quad { endian: Endian::Native, signed: false }),
+        "ubequad" => Ok(ast::DataType::Quad { endian: Endian::Big,    signed: false }),
+        "ulequad" => Ok(ast::DataType::Quad { endian: Endian::Little, signed: false }),
+
+        "float"   => Ok(ast::DataType::Float(Endian::Native)),
+        "befloat" => Ok(ast::DataType::Float(Endian::Big)),
+        "lefloat" => Ok(ast::DataType::Float(Endian::Little)),
+
+        "double"   => Ok(ast::DataType::Double(Endian::Native)),
+        "bedouble" => Ok(ast::DataType::Double(Endian::Big)),
+        "ledouble" => Ok(ast::DataType::Double(Endian::Little)),
+
+        "string" => Ok(ast::DataType::String),
+
+        _ => Err(io::Error::new(ErrorKind::Other, format!("Unknown data type: {:?}", val))),
+    }
+}
+
+#[derive(Clone)]
 pub struct Integer<I: Stream<Item = char>> {
     parser: (Optional<Token<I>>, Or<Try<HexInteger<I>>, Try<DecInteger<I>>>),
-    data_type: DataType,
+    data_type: ast::DataType,
     marker: PhantomData<fn(I) -> I>,
 }
 
@@ -92,7 +167,7 @@ impl<I: Stream<Item = char>> Parser for Integer<I> {
     }
 }
 
-pub fn integer<I: Stream<Item = char>>(data_type: DataType) -> Integer<I> {
+pub fn integer<I: Stream<Item = char>>(data_type: ast::DataType) -> Integer<I> {
     Integer {
         parser: (optional(token('-')), try(hex_integer(data_type.clone())).or(try(dec_integer(data_type.clone())))),
         data_type: data_type,
@@ -103,7 +178,7 @@ pub fn integer<I: Stream<Item = char>>(data_type: DataType) -> Integer<I> {
 #[derive(Clone)]
 pub struct HexInteger<I: Stream<Item = char>> {
     parser: With<Str<I>, Many1<String, HexDigit<I>>>,
-    data_type: DataType,
+    data_type: ast::DataType,
     marker: PhantomData<fn(I) -> I>,
 }
 
@@ -116,44 +191,44 @@ impl<I: Stream<Item = char>> Parser for HexInteger<I> {
         self.parser.parse_lazy(input).map(|num| {
             match self.data_type {
                 // Unsigned values.
-                DataType::Byte { signed: false } => {
+                ast::DataType::Byte { signed: false } => {
                     NumericValue::UByte(
                         u8::from_str_radix(&num, 16)
                             .expect(&format!("Could not parse {} as an 8-bit unsigned int", num)))
                 },
-                DataType::Short { endian: _, signed: false } => {
+                ast::DataType::Short { endian: _, signed: false } => {
                     NumericValue::UShort(
                         u16::from_str_radix(&num, 16)
                             .expect(&format!("Could not parse {} as an 16-bit unsigned int", num)))
                 },
-                DataType::Long { endian: _, signed: false } => {
+                ast::DataType::Long { endian: _, signed: false } => {
                     NumericValue::ULong(
                         u32::from_str_radix(&num, 16)
                             .expect(&format!("Could not parse {} as an 32-bit unsigned int", num)))
                 },
-                DataType::Quad { endian: _, signed: false } => {
+                ast::DataType::Quad { endian: _, signed: false } => {
                     NumericValue::UQuad(
                         u64::from_str_radix(&num, 16)
                             .expect(&format!("Could not parse {} as an 64-bit unsigned int", num)))
                 },
 
                 // Signed values.
-                DataType::Byte { signed: true } => {
+                ast::DataType::Byte { signed: true } => {
                     NumericValue::SByte(
                         i8::from_str_radix(&num, 16)
                             .expect(&format!("Could not parse {} as an 8-bit signed int", num)))
                 },
-                DataType::Short { endian: _, signed: true } => {
+                ast::DataType::Short { endian: _, signed: true } => {
                     NumericValue::SShort(
                         i16::from_str_radix(&num, 16)
                             .expect(&format!("Could not parse {} as an 16-bit signed int", num)))
                 },
-                DataType::Long { endian: _, signed: true } => {
+                ast::DataType::Long { endian: _, signed: true } => {
                     NumericValue::SLong(
                         i32::from_str_radix(&num, 16)
                             .expect(&format!("Could not parse {} as an 32-bit signed int", num)))
                 },
-                DataType::Quad { endian: _, signed: true } => {
+                ast::DataType::Quad { endian: _, signed: true } => {
                     NumericValue::SQuad(
                         i64::from_str_radix(&num, 16)
                             .expect(&format!("Could not parse {} as an 64-bit signed int", num)))
@@ -170,7 +245,7 @@ impl<I: Stream<Item = char>> Parser for HexInteger<I> {
 }
 
 #[inline(always)]
-pub fn hex_integer<I>(data_type: DataType) -> HexInteger<I> where I: Stream<Item = char> {
+pub fn hex_integer<I>(data_type: ast::DataType) -> HexInteger<I> where I: Stream<Item = char> {
     HexInteger {
         parser: string("0x").with(many1::<String, _>(hex_digit())),
         data_type: data_type,
@@ -181,7 +256,7 @@ pub fn hex_integer<I>(data_type: DataType) -> HexInteger<I> where I: Stream<Item
 #[derive(Clone)]
 pub struct DecInteger<I: Stream<Item = char>> {
     parser: Many1<String, Digit<I>>,
-    data_type: DataType,
+    data_type: ast::DataType,
     marker: PhantomData<fn(I) -> I>,
 }
 
@@ -194,44 +269,44 @@ impl<I: Stream<Item = char>> Parser for DecInteger<I> {
         self.parser.parse_lazy(input).map(|num| {
             match self.data_type {
                 // Unsigned values.
-                DataType::Byte { signed: false } => {
+                ast::DataType::Byte { signed: false } => {
                     NumericValue::UByte(
                         u8::from_str_radix(&num, 10)
                             .expect(&format!("Could not parse {} as an 8-bit unsigned int", num)))
                 },
-                DataType::Short { endian: _, signed: false } => {
+                ast::DataType::Short { endian: _, signed: false } => {
                     NumericValue::UShort(
                         u16::from_str_radix(&num, 10)
                             .expect(&format!("Could not parse {} as an 16-bit unsigned int", num)))
                 },
-                DataType::Long { endian: _, signed: false } => {
+                ast::DataType::Long { endian: _, signed: false } => {
                     NumericValue::ULong(
                         u32::from_str_radix(&num, 10)
                             .expect(&format!("Could not parse {} as an 32-bit unsigned int", num)))
                 },
-                DataType::Quad { endian: _, signed: false } => {
+                ast::DataType::Quad { endian: _, signed: false } => {
                     NumericValue::UQuad(
                         u64::from_str_radix(&num, 10)
                             .expect(&format!("Could not parse {} as an 64-bit unsigned int", num)))
                 },
 
                 // Signed values.
-                DataType::Byte { signed: true } => {
+                ast::DataType::Byte { signed: true } => {
                     NumericValue::SByte(
                         i8::from_str_radix(&num, 10)
                             .expect(&format!("Could not parse {} as an 8-bit signed int", num)))
                 },
-                DataType::Short { endian: _, signed: true } => {
+                ast::DataType::Short { endian: _, signed: true } => {
                     NumericValue::SShort(
                         i16::from_str_radix(&num, 10)
                             .expect(&format!("Could not parse {} as an 16-bit signed int", num)))
                 },
-                DataType::Long { endian: _, signed: true } => {
+                ast::DataType::Long { endian: _, signed: true } => {
                     NumericValue::SLong(
                         i32::from_str_radix(&num, 10)
                             .expect(&format!("Could not parse {} as an 32-bit signed int", num)))
                 },
-                DataType::Quad { endian: _, signed: true } => {
+                ast::DataType::Quad { endian: _, signed: true } => {
                     NumericValue::SQuad(
                         i64::from_str_radix(&num, 10)
                             .expect(&format!("Could not parse {} as an 64-bit signed int", num)))
@@ -248,7 +323,7 @@ impl<I: Stream<Item = char>> Parser for DecInteger<I> {
 }
 
 #[inline(always)]
-pub fn dec_integer<I>(data_type: DataType) -> DecInteger<I> where I: Stream<Item = char> {
+pub fn dec_integer<I>(data_type: ast::DataType) -> DecInteger<I> where I: Stream<Item = char> {
     DecInteger {
         parser: many1::<String, _>(digit()),
         data_type: data_type,
@@ -261,30 +336,30 @@ mod tests {
     use combine::Parser;
     use endian::Endian;
     use magic::*;
-    use super::super::DataType;
+    use super::super::ast;
 
     #[test]
     fn integers() {
         assert_eq!(
             Ok((NumericValue::ULong(3_551_379_183), "")),
-            super::integer(DataType::Long { endian: Endian::Native, signed: false }).parse("0xd3adBEEF"));
+            super::integer(ast::DataType::Long { endian: Endian::Native, signed: false }).parse("0xd3adBEEF"));
 
         assert_eq!(
             Ok((NumericValue::SShort(314), "")),
-            super::integer(DataType::Short { endian: Endian::Native, signed: true }).parse("314"));
+            super::integer(ast::DataType::Short { endian: Endian::Native, signed: true }).parse("314"));
 
         assert_eq!(
             Ok((NumericValue::SShort(-314), "")),
-            super::integer(DataType::Short { endian: Endian::Native, signed: true }).parse("-314"));
+            super::integer(ast::DataType::Short { endian: Endian::Native, signed: true }).parse("-314"));
 
         assert_eq!(
             Ok((NumericValue::UByte(0), "")),
-            super::integer(DataType::Byte { signed: false }).parse("0"));
+            super::integer(ast::DataType::Byte { signed: false }).parse("0"));
 
         // Should this actually be octal?
         assert_eq!(
             Ok((NumericValue::UShort(314), "")),
-            super::integer(DataType::Short { endian: Endian::Native, signed: false }).parse("0314"));
+            super::integer(ast::DataType::Short { endian: Endian::Native, signed: false }).parse("0314"));
     }
 
     #[test]
@@ -304,4 +379,35 @@ mod tests {
     //     assert_eq!(Ok((StrOp::LexBefore, "")), super::string_operator().parse("<"));
     //     assert_eq!(Ok((StrOp::LexAfter, "")), super::string_operator().parse(">"));
     // }
+
+    #[test]
+    fn data_type() {
+        use super::super::ast::DataType::*;
+        use endian::Endian::*;
+
+        assert_eq!(Ok((Byte { signed: true  }, "")), super::data_type().parse("byte"));
+
+        assert_eq!(Ok((Short { endian: Native, signed: true }, "")), super::data_type().parse("short"));
+        assert_eq!(Ok((Short { endian: Big,    signed: true }, "")), super::data_type().parse("beshort"));
+        assert_eq!(Ok((Short { endian: Little, signed: true }, "")), super::data_type().parse("leshort"));
+
+        assert_eq!(Ok((Long { endian: Native, signed: true }, "")), super::data_type().parse("long"));
+        assert_eq!(Ok((Long { endian: Big,    signed: true }, "")), super::data_type().parse("belong"));
+        assert_eq!(Ok((Long { endian: Little, signed: true }, "")), super::data_type().parse("lelong"));
+        assert_eq!(Ok((Long { endian: Pdp11,  signed: true }, "")), super::data_type().parse("melong"));
+
+        assert_eq!(Ok((Quad { endian: Native, signed: true }, "")), super::data_type().parse("quad"));
+        assert_eq!(Ok((Quad { endian: Big,    signed: true }, "")), super::data_type().parse("bequad"));
+        assert_eq!(Ok((Quad { endian: Little, signed: true }, "")), super::data_type().parse("lequad"));
+
+        // assert_eq!(Ok((Byte { signed: false }, "")), super::data_type().parse("ubyte"));
+
+        assert_eq!(Ok((Float(Native), "")), super::data_type().parse("float"));
+        assert_eq!(Ok((Float(Big),    "")), super::data_type().parse("befloat"));
+        assert_eq!(Ok((Float(Little), "")), super::data_type().parse("lefloat"));
+
+        assert_eq!(Ok((Double(Native), "")), super::data_type().parse("double"));
+        assert_eq!(Ok((Double(Big),    "")), super::data_type().parse("bedouble"));
+        assert_eq!(Ok((Double(Little), "")), super::data_type().parse("ledouble"));
+    }
 }

@@ -1,6 +1,6 @@
 use endian::Endian;
 use error::MagicResult;
-use parser::DataType;
+use parser::ast::DataType;
 use std::fmt::Debug;
 use std::io::Read;
 

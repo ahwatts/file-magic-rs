@@ -6,7 +6,8 @@ use error::{MagicError, MagicResult};
 use self::parsers::*;
 use std::io::{BufRead, BufReader, Read};
 
-mod parsers;
+pub mod ast;
+pub mod parsers;
 
 pub fn parse_set<R: Read>(filename: String, input: &mut R) -> MagicResult<MagicSet> {
     let mut entries = Vec::new();
@@ -68,7 +69,7 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
     let (level, rest) = try!(many::<String, _>(try(token('>'))).parse(line).map(|(lv_str, rst)| (lv_str.len(), rst)));
     let (offset, rest) = try!(offset(rest));
     let (_, rest) = try!(spaces().parse(rest));
-    let (data_type, rest) = try!(data_type(rest));
+    let (data_type, rest) = try!(data_type().parse(rest));
     let (_, rest) = try!(spaces().parse(rest));
     let (test_val, rest) = try!(test_value(data_type, rest));
     let (_, rest) = try!(spaces().parse(rest));
@@ -91,7 +92,7 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
 fn offset<I>(input: I) -> CombParseResult<I, Offset>
     where I: Stream<Item = char>
 {
-    integer(DataType::Quad { endian: Endian::Native, signed: false }).parse(input).map(|(num, rest)| {
+    integer(ast::DataType::Quad { endian: Endian::Native, signed: false }).parse(input).map(|(num, rest)| {
         if let NumericValue::UQuad(n) = num {
             (Offset::direct(DirectOffset::absolute(n)), rest)
         } else {
@@ -100,94 +101,7 @@ fn offset<I>(input: I) -> CombParseResult<I, Offset>
     })
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, RustcEncodable, RustcDecodable)]
-pub enum DataType {
-    Byte  {                 signed: bool },
-    Short { endian: Endian, signed: bool },
-    Long  { endian: Endian, signed: bool },
-    Quad  { endian: Endian, signed: bool },
-    Float(Endian),
-    Double(Endian),
-
-    String,
-
-    // Id3(Endian),
-
-    // LongDate(Endian, TimeZone),
-    // QuadDate(Endian, TimeZone),
-    // WindowsDate(Endian),
-
-    // String, PascalString, BigEndianString16, LittleEndianString16,
-    // Indirect, Name, Use,
-    // Regex, Search,
-    // Default, Clear,
-}
-
-impl DataType {
-    pub fn endian(&self) -> Endian {
-        use self::DataType::*;
-        match self {
-            &Byte  {..} => Endian::Native,
-            &Short { endian: e, signed: _ } => e,
-            &Long  { endian: e, signed: _ } => e,
-            &Quad  { endian: e, signed: _ } => e,
-            &Float(e) => e,
-            &Double(e) => e,
-            &String => Endian::Native,
-        }
-    }
-}
-
-fn data_type<I>(input: I) -> CombParseResult<I, DataType>
-    where I: Stream<Item = char>
-{
-    use self::DataType::*;
-    use endian::Endian::*;
-
-    choice([
-        try(string("byte").with(value(Byte { signed: true }))),
-
-        try(string("short")  .with(value(Short { endian: Native, signed: true }))),
-        try(string("beshort").with(value(Short { endian: Big,    signed: true }))),
-        try(string("leshort").with(value(Short { endian: Little, signed: true }))),
-
-        try(string("long")  .with(value(Long { endian: Native, signed: true }))),
-        try(string("belong").with(value(Long { endian: Big,    signed: true }))),
-        try(string("lelong").with(value(Long { endian: Little, signed: true }))),
-        try(string("melong").with(value(Long { endian: Pdp11,  signed: true }))),
-
-        try(string("quad")  .with(value(Quad { endian: Native, signed: true }))),
-        try(string("bequad").with(value(Quad { endian: Big,    signed: true }))),
-        try(string("lequad").with(value(Quad { endian: Little, signed: true }))),
-
-        try(string("ubyte").with(value(Byte { signed: false }))),
-
-        try(string("ushort")  .with(value(Short { endian: Native, signed: false }))),
-        try(string("ubeshort").with(value(Short { endian: Big,    signed: false }))),
-        try(string("uleshort").with(value(Short { endian: Little, signed: false }))),
-
-        try(string("ulong")  .with(value(Long { endian: Native, signed: false }))),
-        try(string("ubelong").with(value(Long { endian: Big,    signed: false }))),
-        try(string("ulelong").with(value(Long { endian: Little, signed: false }))),
-        try(string("umelong").with(value(Long { endian: Pdp11,  signed: false }))),
-
-        try(string("uquad")  .with(value(Quad { endian: Native, signed: false }))),
-        try(string("ubequad").with(value(Quad { endian: Big,    signed: false }))),
-        try(string("ulequad").with(value(Quad { endian: Little, signed: false }))),
-
-        try(string("float")  .with(value(Float(Native)))),
-        try(string("befloat").with(value(Float(Big)))),
-        try(string("lefloat").with(value(Float(Little)))),
-
-        try(string("double")  .with(value(Double(Native)))),
-        try(string("bedouble").with(value(Double(Big)))),
-        try(string("ledouble").with(value(Double(Little)))),
-
-        try(string("string").with(value(String))),
-    ]).parse(input)
-}
-
-fn test_value<I: Stream<Item = char>>(data_type: DataType, input: I) -> CombParseResult<I, Test> {
+fn test_value<I: Stream<Item = char>>(data_type: ast::DataType, input: I) -> CombParseResult<I, Test> {
     token('x').with(look_ahead(space())).map(|_| Test::AlwaysTrue)
         .or(try((optional(numeric_operator()), integer(data_type.clone())).map(|(op, n)| {
             Test::Number(NumericTest::new(&data_type, op.unwrap_or(NumOp::Equal), n))
@@ -224,40 +138,9 @@ mod tests {
     }
 
     #[test]
-    fn data_type() {
-        use super::DataType::*;
-        use endian::Endian::*;
-
-        assert_eq!(Ok((Byte { signed: true  }, "")), super::data_type("byte"));
-
-        assert_eq!(Ok((Short { endian: Native, signed: true }, "")), super::data_type("short"));
-        assert_eq!(Ok((Short { endian: Big,    signed: true }, "")), super::data_type("beshort"));
-        assert_eq!(Ok((Short { endian: Little, signed: true }, "")), super::data_type("leshort"));
-
-        assert_eq!(Ok((Long { endian: Native, signed: true }, "")), super::data_type("long"));
-        assert_eq!(Ok((Long { endian: Big,    signed: true }, "")), super::data_type("belong"));
-        assert_eq!(Ok((Long { endian: Little, signed: true }, "")), super::data_type("lelong"));
-        assert_eq!(Ok((Long { endian: Pdp11,  signed: true }, "")), super::data_type("melong"));
-
-        assert_eq!(Ok((Quad { endian: Native, signed: true }, "")), super::data_type("quad"));
-        assert_eq!(Ok((Quad { endian: Big,    signed: true }, "")), super::data_type("bequad"));
-        assert_eq!(Ok((Quad { endian: Little, signed: true }, "")), super::data_type("lequad"));
-
-        // assert_eq!(Ok((Byte { signed: false }, "")), super::data_type("ubyte"));
-
-        assert_eq!(Ok((Float(Native), "")), super::data_type("float"));
-        assert_eq!(Ok((Float(Big),    "")), super::data_type("befloat"));
-        assert_eq!(Ok((Float(Little), "")), super::data_type("lefloat"));
-
-        assert_eq!(Ok((Double(Native), "")), super::data_type("double"));
-        assert_eq!(Ok((Double(Big),    "")), super::data_type("bedouble"));
-        assert_eq!(Ok((Double(Little), "")), super::data_type("ledouble"));
-    }
-
-    #[test]
     fn numeric_test_values() {
         use magic::Test::*;
-        use super::DataType::*;
+        use super::ast::DataType::*;
         use endian::Endian::*;
         use magic::NumericValue::*;
         use magic::NumOp::*;
