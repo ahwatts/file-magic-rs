@@ -175,7 +175,7 @@ fn data_type<I>(input: I) -> CombParseResult<I, DataType>
 fn test_value<I: Stream<Item = char>>(data_type: DataType, input: I) -> CombParseResult<I, Test> {
     token('x').with(look_ahead(space())).map(|_| Test::AlwaysTrue)
         .or(try((optional(numeric_operator()), integer(data_type.clone())).map(|(op, n)| {
-            Test::Number(NumericTest::new(data_type.clone(), op.unwrap_or(NumOp::Equal), n))
+            Test::Number(NumericTest::new(&data_type, op.unwrap_or(NumOp::Equal), n))
         })))
         // .or(try((optional(string_operator()), many1::<String, _>(satisfy(|c| c != ' ' && c != '\t')))
         //         .map(|(op, s)| Test::String { op: op.unwrap_or(StrOp::Equal), value: s })))
@@ -213,7 +213,7 @@ mod tests {
         use super::DataType::*;
         use endian::Endian::*;
 
-        assert_eq!(Ok((Byte { signed: true }, "")), super::data_type("byte"));
+        assert_eq!(Ok((Byte { signed: true  }, "")), super::data_type("byte"));
 
         assert_eq!(Ok((Short { endian: Native, signed: true }, "")), super::data_type("short"));
         assert_eq!(Ok((Short { endian: Big,    signed: true }, "")), super::data_type("beshort"));
@@ -228,6 +228,8 @@ mod tests {
         assert_eq!(Ok((Quad { endian: Big,    signed: true }, "")), super::data_type("bequad"));
         assert_eq!(Ok((Quad { endian: Little, signed: true }, "")), super::data_type("lequad"));
 
+        // assert_eq!(Ok((Byte { signed: false }, "")), super::data_type("ubyte"));
+
         assert_eq!(Ok((Float(Native), "")), super::data_type("float"));
         assert_eq!(Ok((Float(Big),    "")), super::data_type("befloat"));
         assert_eq!(Ok((Float(Little), "")), super::data_type("lefloat"));
@@ -237,21 +239,26 @@ mod tests {
         assert_eq!(Ok((Double(Little), "")), super::data_type("ledouble"));
     }
 
-    // #[test]
-    // fn test_value() {
-    //     use magic::Test::*;
-    //     use magic::Numeric::*;
+    #[test]
+    fn numeric_test_values() {
+        use magic::Test::*;
+        use super::DataType::*;
+        use endian::Endian::*;
+        use magic::NumericValue::*;
+        use magic::NumOp::*;
 
-    //     assert_eq!(Ok((AlwaysTrue, " ")), super::test_value("x "));
+        assert_eq!(Ok((AlwaysTrue, " ")), super::test_value(Byte { signed: false }, "x "));
 
-    //     assert_eq!(Ok((Number { op: NumOp::Equal, value: SignedInt(305) }, "")), super::test_value("305"));
-    //     assert_eq!(Ok((Number { op: NumOp::Equal, value: SignedInt(305) }, "")), super::test_value("=305"));
-    //     assert_eq!(Ok((Number { op: NumOp::BitNeg, value: SignedInt(305) }, "")), super::test_value("~305"));
+        assert_eq!(
+            Ok((Number(NumericTest { endian: Native, logic_op: Equal, test_value: SLong(305) }), "")),
+            super::test_value(Long { endian: Native, signed: true }, "305"));
 
-    //     assert_eq!(Ok((String { op: StrOp::Equal, value: "RIFF".to_string() }, "")), super::test_value("RIFF"));
-    //     assert_eq!(Ok((String { op: StrOp::Equal, value: "RIFF".to_string() }, "")), super::test_value("=RIFF"));
+        assert_eq!(
+            Ok((Number(NumericTest { endian: Little, logic_op: Equal, test_value: SQuad(305) }), "")),
+            super::test_value(Quad { endian: Little, signed: true }, "=305"));
 
-    //     assert_eq!(Ok((Number { op: NumOp::GreaterThan, value: SignedInt(48_879) }, "")), super::test_value(">0xBeef"));
-    //     assert_eq!(Ok((String { op: StrOp::LexAfter, value: "Beef".to_string() }, "")), super::test_value(">Beef"));
-    // }
+        assert_eq!(
+            Ok((Number(NumericTest { endian: Big, logic_op: GreaterThan, test_value: UShort(48_879) }), "")),
+            super::test_value(Short { endian: Big, signed: false }, ">0xBeef"));
+    }
 }
