@@ -1,7 +1,8 @@
 use endian::Endian;
 use error::MagicResult;
-use std::io::Read;
 use parser::DataType;
+use std::fmt::Debug;
+use std::io::Read;
 
 #[derive(Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
 pub enum Test {
@@ -25,8 +26,18 @@ impl NumericTest {
         }
     }
 
-    pub fn matches<F: Read>(&self, _file: &mut F) -> MagicResult<bool> {
-        unimplemented!()
+    pub fn matches<F: Read>(&self, file: &mut F) -> MagicResult<bool> {
+        match self.test_value {
+            NumericValue::UByte(test_value)  => Ok(self.logic_op.matches(try!(self.endian.read_u8(file)),  test_value)),
+            NumericValue::UShort(test_value) => Ok(self.logic_op.matches(try!(self.endian.read_u16(file)), test_value)),
+            NumericValue::ULong(test_value)  => Ok(self.logic_op.matches(try!(self.endian.read_u32(file)), test_value)),
+            NumericValue::UQuad(test_value)  => Ok(self.logic_op.matches(try!(self.endian.read_u64(file)), test_value)),
+
+            NumericValue::SByte(test_value)  => Ok(self.logic_op.matches(try!(self.endian.read_i8(file)),  test_value)),
+            NumericValue::SShort(test_value) => Ok(self.logic_op.matches(try!(self.endian.read_i16(file)), test_value)),
+            NumericValue::SLong(test_value)  => Ok(self.logic_op.matches(try!(self.endian.read_i32(file)), test_value)),
+            NumericValue::SQuad(test_value)  => Ok(self.logic_op.matches(try!(self.endian.read_i64(file)), test_value)),
+        }
     }
 }
 
@@ -41,9 +52,21 @@ pub enum NumOp {
     // BitNeg,
 }
 
+impl NumOp {
+    fn matches<T: PartialEq + PartialOrd + Sized + Debug>(&self, lhs: T, rhs: T) -> bool {
+        println!("NumOp matches: {:?} {:?} {:?}", lhs, self, rhs);
+        match self {
+            &NumOp::Equal       => lhs == rhs,
+            &NumOp::LessThan    => lhs  < rhs,
+            &NumOp::GreaterThan => lhs  > rhs,
+            &NumOp::NotEqual    => lhs != rhs,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
 pub enum NumericValue {
     UByte(u8), UShort(u16), ULong(u32), UQuad(u64),
     SByte(i8), SShort(i16), SLong(i32), SQuad(i64),
-    Float32(f32), Float64(f64),
+    // Float32(f32), Float64(f64),
 }

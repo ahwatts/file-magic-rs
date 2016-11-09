@@ -47,7 +47,7 @@ fn parse_line<I>(line: I) -> CombParseResult<I, Option<MagicEntry>>
     where I: Stream<Item = char> + Clone
 {
     let blank = (spaces(), eof()).map(|_| None);
-    let comment = (spaces(), token('#').or(token('!')), many::<String, _>(try(any()))).map(|_| None);
+    let comment = (spaces(), token('#'), many::<String, _>(try(any()))).map(|_| None);
     let mut ignorer = try(blank).or(comment);
 
     match ignorer.parse(line.clone()) {
@@ -159,6 +159,21 @@ fn data_type<I>(input: I) -> CombParseResult<I, DataType>
         try(string("quad")  .with(value(Quad { endian: Native, signed: true }))),
         try(string("bequad").with(value(Quad { endian: Big,    signed: true }))),
         try(string("lequad").with(value(Quad { endian: Little, signed: true }))),
+
+        try(string("ubyte").with(value(Byte { signed: false }))),
+
+        try(string("ushort")  .with(value(Short { endian: Native, signed: false }))),
+        try(string("ubeshort").with(value(Short { endian: Big,    signed: false }))),
+        try(string("uleshort").with(value(Short { endian: Little, signed: false }))),
+
+        try(string("ulong")  .with(value(Long { endian: Native, signed: false }))),
+        try(string("ubelong").with(value(Long { endian: Big,    signed: false }))),
+        try(string("ulelong").with(value(Long { endian: Little, signed: false }))),
+        try(string("umelong").with(value(Long { endian: Pdp11,  signed: false }))),
+
+        try(string("uquad")  .with(value(Quad { endian: Native, signed: false }))),
+        try(string("ubequad").with(value(Quad { endian: Big,    signed: false }))),
+        try(string("ulequad").with(value(Quad { endian: Little, signed: false }))),
 
         try(string("float")  .with(value(Float(Native)))),
         try(string("befloat").with(value(Float(Big)))),

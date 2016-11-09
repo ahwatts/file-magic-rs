@@ -44,9 +44,6 @@ impl_parser! {
                 '<' => NumOp::LessThan,
                 '>' => NumOp::GreaterThan,
                 '!' => NumOp::NotEqual,
-                // '&' => NumOp::BitAnd,
-                // '^' => NumOp::BitXor,
-                // '~' => NumOp::BitNeg,
                 _ => unreachable!(),
             }
         })
@@ -55,7 +52,7 @@ impl_parser! {
 
 #[inline(always)]
 pub fn numeric_operator<I: Stream<Item = char>>() -> NumericOperator<I> {
-    NumericOperator(one_of("=<>!&^~".chars()), PhantomData)
+    NumericOperator(one_of("=<>!".chars()), PhantomData)
 }
 
 #[derive(Clone)]
@@ -83,8 +80,6 @@ impl<I: Stream<Item = char>> Parser for Integer<I> {
                     NumericValue::SShort(s) => NumericValue::SShort(-1 * s),
                     NumericValue::SLong(l)  => NumericValue::SLong (-1 * l),
                     NumericValue::SQuad(q)  => NumericValue::SQuad (-1 * q),
-
-                    _ => unreachable!(),
                 }
             } else {
                 num
