@@ -243,6 +243,37 @@ pub fn dec_integer<I>(data_type: DataDesc) -> DecInteger<I> where I: Stream<Item
     }
 }
 
+pub struct OctInteger<I: Stream<Item = char>> {
+    parser: With<Token<I>, Many1<String, OctDigit<I>>>,
+    data_type: DataDesc,
+    marker: PhantomData<fn(I) -> I>,
+}
+
+impl<I: Stream<Item = char>> Parser for OctInteger<I> {
+    type Input = I;
+    type Output = NumericValue;
+
+    #[inline]
+    fn parse_lazy(&mut self, input: Self::Input) -> ConsumedResult<Self::Output, Self::Input> {
+        self.parser.parse_lazy(input).map(|num| {
+            NumericValue::from_described_str_radix(&self.data_type, num, 8)
+        })
+    }
+
+    fn add_error(&mut self, errors: &mut ParseError<Self::Input>) {
+        self.parser.add_error(errors)
+    }
+}
+
+#[inline(always)]
+pub fn oct_integer<I: Stream<Item = char>>(data_type: DataDesc) -> OctInteger<I> {
+    OctInteger {
+        parser: token('0').with(many1::<String, _>(oct_digit())),
+        data_type: data_type,
+        marker: PhantomData,
+    }
+}
+
 pub struct Escaped<T, I>(With<Token<I>, OneOf<T, I>>, PhantomData<fn(I) -> I>)
     where T: Clone + IntoIterator<Item = char>,
           I: Stream<Item = char>;
