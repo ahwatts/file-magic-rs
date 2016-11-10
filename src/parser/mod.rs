@@ -1,12 +1,12 @@
 use combine::*;
 use combine::char::*;
+use data_type::{DataDesc, NumericValue};
 use endian::Endian;
 use magic::*;
 use error::{MagicError, MagicResult};
 use self::parsers::*;
 use std::io::{BufRead, BufReader, Read};
 
-pub mod ast;
 pub mod parsers;
 
 pub fn parse_set<R: Read>(filename: String, input: &mut R) -> MagicResult<MagicSet> {
@@ -69,7 +69,7 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
     let (level, rest) = try!(many::<String, _>(try(token('>'))).parse(line).map(|(lv_str, rst)| (lv_str.len(), rst)));
     let (offset, rest) = try!(offset(rest));
     let (_, rest) = try!(spaces().parse(rest));
-    let (data_type, rest) = try!(data_type().parse(rest));
+    let ((data_type, _opt_and_val), rest) = try!(data_type_and(rest));
     let (_, rest) = try!(spaces().parse(rest));
     let (test_val, rest) = try!(test_value(data_type, rest));
     let (_, rest) = try!(spaces().parse(rest));
@@ -89,10 +89,16 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
     ))
 }
 
+fn data_type_and<I: Stream<Item = char>>(input: I) -> CombParseResult<I, (DataDesc, Option<NumericValue>)> {
+    let (data_type, rest) = try!(data_type().parse(input));
+    let (and_val, rest) = try!(optional(token('&').with(integer(data_type.clone()))).parse(rest));
+    Ok(((data_type, and_val), rest))
+}
+
 fn offset<I>(input: I) -> CombParseResult<I, Offset>
     where I: Stream<Item = char>
 {
-    integer(ast::DataType::Quad { endian: Endian::Native, signed: false }).parse(input).map(|(num, rest)| {
+    integer(DataDesc::Quad { endian: Endian::Native, signed: false }).parse(input).map(|(num, rest)| {
         if let NumericValue::UQuad(n) = num {
             (Offset::direct(DirectOffset::absolute(n)), rest)
         } else {
@@ -101,7 +107,7 @@ fn offset<I>(input: I) -> CombParseResult<I, Offset>
     })
 }
 
-fn test_value<I: Stream<Item = char>>(data_type: ast::DataType, input: I) -> CombParseResult<I, Test> {
+fn test_value<I: Stream<Item = char>>(data_type: DataDesc, input: I) -> CombParseResult<I, Test> {
     token('x').with(look_ahead(space())).map(|_| Test::AlwaysTrue)
         .or(try((optional(numeric_operator()), integer(data_type.clone())).map(|(op, n)| {
             Test::Number(NumericTest::new(&data_type, op.unwrap_or(NumOp::Equal), n))
@@ -139,11 +145,11 @@ mod tests {
 
     #[test]
     fn numeric_test_values() {
-        use magic::Test::*;
-        use super::ast::DataType::*;
+        use data_type::DataDesc::*;
+        use data_type::NumericValue::*;
         use endian::Endian::*;
-        use magic::NumericValue::*;
         use magic::NumOp::*;
+        use magic::Test::*;
 
         assert_eq!(Ok((AlwaysTrue, " ")), super::test_value(Byte { signed: false }, "x "));
 
