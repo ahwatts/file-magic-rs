@@ -1,45 +1,24 @@
 use combine::char::*;
 use combine::combinator::*;
-use combine::{ConsumedResult, ParseError, Parser, Stream};
+use combine::{ConsumedResult, ParseError, Parser, Stream, ParseResult};
 use data_type::{DataDesc, NumericValue};
 use magic::*;
 use std::io::{self, ErrorKind};
+use std::iter::FromIterator;
 use std::marker::PhantomData;
 use std::str::Chars;
 
-macro_rules! impl_parser {
-    (
-        $name:ident($($ty_var:ident),*), $base_ty:ty, $inner_type:ty, $out_type:ty,
-        |$self_var:ident, $input_var:ident| $parse_lazy_body:block
-    ) => {
-        #[derive(Clone)]
-        pub struct $name<I $(,$ty_var)*>($inner_type, PhantomData<fn(I) -> I>)
-            where I: Stream<Item = $base_ty> $(, $ty_var: Parser<Input = I>)*;
+#[derive(Clone)]
+pub struct NumericOperator<I>(OneOf<Chars<'static>, I>, PhantomData<fn(I) -> I>)
+    where I: Stream<Item = char>;
 
-        impl<I $(,$ty_var)*> Parser for $name<I $(,$ty_var)*>
-            where I: Stream<Item = $base_ty> $(, $ty_var: Parser<Input = I>)*
-        {
-            type Input = I;
-            type Output = $out_type;
+impl<I: Stream<Item = char>> Parser for NumericOperator<I> {
+    type Input = I;
+    type Output = NumOp;
 
-            #[inline]
-            fn parse_lazy(&mut self, eennput: Self::Input) -> ConsumedResult<Self::Output, Self::Input> {
-                let $self_var = self;
-                let $input_var = eennput;
-                $parse_lazy_body
-            }
-
-            fn add_error(&mut self, errors: &mut ParseError<Self::Input>) {
-                self.0.add_error(errors)
-            }
-        }
-    }
-}
-
-impl_parser! {
-    NumericOperator(), char, OneOf<Chars<'static>, I>, NumOp,
-    |celf, input| {
-        celf.0.parse_lazy(input).map(|c| {
+    #[inline]
+    fn parse_lazy(&mut self, input: Self::Input) -> ConsumedResult<Self::Output, Self::Input> {
+        self.0.parse_lazy(input).map(|c| {
             match c {
                 '=' => NumOp::Equal,
                 '<' => NumOp::LessThan,
@@ -48,6 +27,10 @@ impl_parser! {
                 _ => unreachable!(),
             }
         })
+    }
+
+    fn add_error(&mut self, errors: &mut ParseError<Self::Input>) {
+        self.0.add_error(errors)
     }
 }
 
@@ -297,15 +280,78 @@ impl<T, I> Parser for Escaped<T, I>
 
 #[inline(always)]
 pub fn escaped<T, I>(escaper: char, escapees: T) -> Escaped<T, I>
-    where I: Stream<Item = char>,
-          T: Clone + IntoIterator<Item = char>
+    where T: Clone + IntoIterator<Item = char>,
+          I: Stream<Item = char>
 {
     Escaped(token(escaper).with(one_of(escapees)), PhantomData)
+}
+
+#[derive(Clone)]
+pub struct AtMost<F, P> where P: Parser {
+    limit: u32,
+    parser: P,
+    marker: PhantomData<F>,
+}
+
+impl<F, P> Parser for AtMost<F, P>
+    where F: FromIterator<P::Output>,
+          P: Parser
+{
+    type Input = P::Input;
+    type Output = F;
+
+    fn parse_stream(&mut self, input: Self::Input) -> ParseResult<Self::Output, Self::Input> {
+        let mut iter = self.parser.by_ref().iter(input);
+        let value = iter.by_ref().take(self.limit as usize).collect();
+        iter.into_result(value)
+    }
+}
+
+pub fn at_most<F, P>(limit: u32, parser: P) -> AtMost<F, P>
+    where F: FromIterator<P::Output>,
+          P: Parser
+{
+    AtMost { limit: limit, parser: parser, marker: PhantomData, }
+}
+
+#[derive(Clone)]
+pub struct EscapedNum<I: Stream<Item = char>> {
+    parser: With<Token<I>, Or<(With<Token<I>, AtMost<String, HexDigit<I>>>, Value<I, u32>), (AtMost<String, OctDigit<I>>, Value<I, u32>)>>,
+    marker: PhantomData<fn(I) -> I>
+}
+
+impl<I: Stream<Item = char>> Parser for EscapedNum<I> {
+    type Input = I;
+    type Output = char;
+
+    #[inline]
+    fn parse_lazy(&mut self, input: I) -> ConsumedResult<Self::Output, Self::Input> {
+        self.parser.parse_lazy(input).map(|(string, radix)| {
+            println!("string = {:?} radix = {:?}", string, radix);
+            From::from(u8::from_str_radix(&string, radix).unwrap())
+        })
+    }
+
+    fn add_error(&mut self, errors: &mut ParseError<Self::Input>) {
+        self.parser.add_error(errors)
+    }
+}
+
+#[inline(always)]
+pub fn escaped_num<I: Stream<Item = char>>(escaper: char) -> EscapedNum<I> {
+    let oct_num = (at_most::<String, _>(3, oct_digit()), value(8));
+    let hex_num = (token('x').with(at_most::<String, _>(2, hex_digit())), value(16));
+
+    EscapedNum {
+        parser: token(escaper).with(hex_num.or(oct_num)),
+        marker: PhantomData,
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use combine::Parser;
+    use combine::char::alpha_num;
 
     #[test]
     fn integers() {
@@ -399,5 +445,19 @@ mod tests {
         assert_eq!(Ok(('"', "")), parser.parse("\\\""));
         assert_eq!(Ok(('\0', "")), parser.parse("\\0"));
         assert_eq!(Ok(('\x0E', "")), parser.parse("\\016"));
+    }
+
+    #[test]
+    fn escaped_numbers() {
+        assert_eq!(Ok(('\u{D2}', "")), super::escaped_num('\\').parse("\\322"));
+        assert_eq!(Ok(('\u{D2}', "322")), super::escaped_num('\\').parse("\\322322"));
+        assert_eq!(Ok(('\n', "")), super::escaped_num('\\').parse("\\x0a"));
+        assert_eq!(Ok(('\n', "abc")), super::escaped_num('\\').parse("\\x0aabc"));
+    }
+
+    #[test]
+    fn at_most_parser() {
+        assert_eq!(Ok(("abc".to_string(), "d")), super::at_most::<String, _>(3, alpha_num()).parse("abcd"));
+        assert_eq!(Ok(("ab".to_string(), "&d")), super::at_most::<String, _>(3, alpha_num()).parse("ab&d"));
     }
 }
