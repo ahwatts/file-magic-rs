@@ -67,11 +67,11 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
     where I: Stream<Item = char>
 {
     let (level, rest) = try!(many::<String, _>(try(token('>'))).parse(line).map(|(lv_str, rst)| (lv_str.len(), rst)));
-    let (offset, rest) = try!(offset(rest));
+    // let (offset, rest) = try!(offset(rest));
     let (_, rest) = try!(spaces().parse(rest));
-    let ((data_type, _opt_and_val), rest) = try!(data_type_and(rest));
+    // let ((data_type, _opt_and_val), rest) = try!(data_type_and(rest));
     let (_, rest) = try!(spaces().parse(rest));
-    let (test_val, rest) = try!(test_value(data_type, rest));
+    // let (test_val, rest) = try!(test_value(data_type, rest));
     let (_, rest) = try!(spaces().parse(rest));
     let ((message, _), rest) = try!((many::<String, _>(try(any())), eof()).parse(rest));
 
@@ -80,42 +80,42 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
             filename: String::new(),
             line_num: 0,
             level: level as u32,
-            offset: offset,
+            offset: Offset::direct(DirectOffset::absolute(0)),
             // data_type: data_type,
-            test: test_val,
+            test: Test::AlwaysTrue,
             message: message,
         },
         rest
     ))
 }
 
-fn data_type_and<I: Stream<Item = char>>(input: I) -> CombParseResult<I, (DataDesc, Option<NumericValue>)> {
-    let (data_type, rest) = try!(data_type().parse(input));
-    let (and_val, rest) = try!(optional(token('&').with(integer(data_type.clone()))).parse(rest));
-    Ok(((data_type, and_val), rest))
-}
+// fn data_type_and<I: Stream<Item = char>>(input: I) -> CombParseResult<I, (DataDesc, Option<NumericValue>)> {
+//     let (data_type, rest) = try!(data_type().parse(input));
+//     let (and_val, rest) = try!(optional(token('&').with(integer(data_type.clone()))).parse(rest));
+//     Ok(((data_type, and_val), rest))
+// }
 
-fn offset<I>(input: I) -> CombParseResult<I, Offset>
-    where I: Stream<Item = char>
-{
-    integer(DataDesc::Quad { endian: Endian::Native, signed: false }).parse(input).map(|(num, rest)| {
-        if let NumericValue::UQuad(n) = num {
-            (Offset::direct(DirectOffset::absolute(n)), rest)
-        } else {
-            unreachable!()
-        }
-    })
-}
+// fn offset<I>(input: I) -> CombParseResult<I, Offset>
+//     where I: Stream<Item = char>
+// {
+//     integer(DataDesc::Quad { endian: Endian::Native, signed: false }).parse(input).map(|(num, rest)| {
+//         if let NumericValue::UQuad(n) = num {
+//             (Offset::direct(DirectOffset::absolute(n)), rest)
+//         } else {
+//             unreachable!()
+//         }
+//     })
+// }
 
-fn test_value<I: Stream<Item = char>>(data_type: DataDesc, input: I) -> CombParseResult<I, Test> {
-    token('x').with(look_ahead(space())).map(|_| Test::AlwaysTrue)
-        .or(try((optional(numeric_operator()), integer(data_type.clone())).map(|(op, n)| {
-            Test::Number(NumericTest::new(&data_type, op.unwrap_or(NumOp::Equal), n))
-        })))
-        // .or(try((optional(string_operator()), many1::<String, _>(satisfy(|c| c != ' ' && c != '\t')))
-        //         .map(|(op, s)| Test::String { op: op.unwrap_or(StrOp::Equal), value: s })))
-        .parse(input)
-}
+// fn test_value<I: Stream<Item = char>>(data_type: DataDesc, input: I) -> CombParseResult<I, Test> {
+//     token('x').with(look_ahead(space())).map(|_| Test::AlwaysTrue)
+//         .or(try((optional(numeric_operator()), integer(data_type.clone())).map(|(op, n)| {
+//             Test::Number(NumericTest::new(&data_type, op.unwrap_or(NumOp::Equal), n))
+//         })))
+//         // .or(try((optional(string_operator()), many1::<String, _>(satisfy(|c| c != ' ' && c != '\t')))
+//         //         .map(|(op, s)| Test::String { op: op.unwrap_or(StrOp::Equal), value: s })))
+//         .parse(input)
+// }
 
 #[cfg(test)]
 mod tests {
@@ -137,32 +137,32 @@ mod tests {
         assert_eq!(Ok((None, "")), super::parse_line("  \t #\t"));
     }
 
-    #[test]
-    fn direct_offset() {
-        assert_eq!(Ok((Offset::direct(DirectOffset::absolute(108)), "")), super::offset("108"));
-        assert_eq!(Ok((Offset::direct(DirectOffset::absolute(108)), "")), super::offset("0x6c"));
-    }
+    // #[test]
+    // fn direct_offset() {
+    //     assert_eq!(Ok((Offset::direct(DirectOffset::absolute(108)), "")), super::offset("108"));
+    //     assert_eq!(Ok((Offset::direct(DirectOffset::absolute(108)), "")), super::offset("0x6c"));
+    // }
 
-    #[test]
-    fn numeric_test_values() {
-        use data_type::DataDesc::*;
-        use data_type::NumericValue::*;
-        use endian::Endian::*;
-        use magic::NumOp::*;
-        use magic::Test::*;
+    // #[test]
+    // fn numeric_test_values() {
+    //     use data_type::DataDesc::*;
+    //     use data_type::NumericValue::*;
+    //     use endian::Endian::*;
+    //     use magic::NumOp::*;
+    //     use magic::Test::*;
 
-        assert_eq!(Ok((AlwaysTrue, " ")), super::test_value(Byte { signed: false }, "x "));
+    //     assert_eq!(Ok((AlwaysTrue, " ")), super::test_value(Byte { signed: false }, "x "));
 
-        assert_eq!(
-            Ok((Number(NumericTest { endian: Native, logic_op: Equal, test_value: SLong(305) }), "")),
-            super::test_value(Long { endian: Native, signed: true }, "305"));
+    //     assert_eq!(
+    //         Ok((Number(NumericTest { endian: Native, logic_op: Equal, test_value: SLong(305) }), "")),
+    //         super::test_value(Long { endian: Native, signed: true }, "305"));
 
-        assert_eq!(
-            Ok((Number(NumericTest { endian: Little, logic_op: Equal, test_value: SQuad(305) }), "")),
-            super::test_value(Quad { endian: Little, signed: true }, "=305"));
+    //     assert_eq!(
+    //         Ok((Number(NumericTest { endian: Little, logic_op: Equal, test_value: SQuad(305) }), "")),
+    //         super::test_value(Quad { endian: Little, signed: true }, "=305"));
 
-        assert_eq!(
-            Ok((Number(NumericTest { endian: Big, logic_op: GreaterThan, test_value: UShort(48_879) }), "")),
-            super::test_value(Short { endian: Big, signed: false }, ">0xBeef"));
-    }
+    //     assert_eq!(
+    //         Ok((Number(NumericTest { endian: Big, logic_op: GreaterThan, test_value: UShort(48_879) }), "")),
+    //         super::test_value(Short { endian: Big, signed: false }, ">0xBeef"));
+    // }
 }

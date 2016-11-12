@@ -1,14 +1,47 @@
 use combine::char::*;
 use combine::combinator::*;
 use combine::{ConsumedResult, ParseError, Parser, Stream, ParseResult};
-use data_type::{DataDesc, NumericValue};
+use data_type::{DataDesc};
 use magic::*;
+use num::{self, Num};
 use std::io::{self, ErrorKind};
 use std::iter::FromIterator;
 use std::marker::PhantomData;
 use std::str::Chars;
 
-#[derive(Clone)]
+/// Parses 0..limit tokens with parser.
+pub fn at_most<F, P>(limit: u32, parser: P) -> AtMost<F, P>
+    where F: FromIterator<P::Output>,
+          P: Parser
+{
+    AtMost { limit: limit, parser: parser, marker: PhantomData, }
+}
+
+pub struct AtMost<F, P> where P: Parser {
+    limit: u32,
+    parser: P,
+    marker: PhantomData<F>,
+}
+
+impl<F, P> Parser for AtMost<F, P>
+    where F: FromIterator<P::Output>,
+          P: Parser
+{
+    type Input = P::Input;
+    type Output = F;
+
+    fn parse_stream(&mut self, input: Self::Input) -> ParseResult<Self::Output, Self::Input> {
+        let mut iter = self.parser.by_ref().iter(input);
+        let value = iter.by_ref().take(self.limit as usize).collect();
+        iter.into_result(value)
+    }
+}
+
+/// Parses a numeric operator.
+pub fn numeric_operator<I: Stream<Item = char>>() -> NumericOperator<I> {
+    NumericOperator(one_of("=<>!".chars()), PhantomData)
+}
+
 pub struct NumericOperator<I>(OneOf<Chars<'static>, I>, PhantomData<fn(I) -> I>)
     where I: Stream<Item = char>;
 
@@ -16,7 +49,6 @@ impl<I: Stream<Item = char>> Parser for NumericOperator<I> {
     type Input = I;
     type Output = NumOp;
 
-    #[inline]
     fn parse_lazy(&mut self, input: Self::Input) -> ConsumedResult<Self::Output, Self::Input> {
         self.0.parse_lazy(input).map(|c| {
             match c {
@@ -34,15 +66,17 @@ impl<I: Stream<Item = char>> Parser for NumericOperator<I> {
     }
 }
 
-#[inline(always)]
-pub fn numeric_operator<I: Stream<Item = char>>() -> NumericOperator<I> {
-    NumericOperator(one_of("=<>!".chars()), PhantomData)
+/// Parses a data type descriptor.
+pub fn data_type<I: Stream<Item = char>>() -> DataType<I> {
+    DataType {
+        parser: many1::<String, _>(alpha_num()).and_then(translate_data_type_value),
+        marker: PhantomData,
+    }
 }
 
-#[derive(Clone)]
 pub struct DataType<I: Stream<Item = char>> {
     parser: AndThen<Many1<String, AlphaNum<I>>, fn(String) -> io::Result<DataDesc>>,
-    _marker: PhantomData<fn(I) -> I>
+    marker: PhantomData<fn(I) -> I>
 }
 
 impl<I: Stream<Item = char>> Parser for DataType<I> {
@@ -56,13 +90,6 @@ impl<I: Stream<Item = char>> Parser for DataType<I> {
 
     fn add_error(&mut self, errors: &mut ParseError<Self::Input>) {
         self.parser.add_error(errors)
-    }
-}
-
-pub fn data_type<I: Stream<Item = char>>() -> DataType<I> {
-    DataType {
-        parser: many1::<String, _>(alpha_num()).and_then(translate_data_type_value),
-        _marker: PhantomData,
     }
 }
 
@@ -115,36 +142,49 @@ fn translate_data_type_value(val: String) -> io::Result<DataDesc> {
     }
 }
 
-#[derive(Clone)]
-pub struct Integer<I: Stream<Item = char>> {
-    parser: (Optional<Token<I>>, Or<Try<HexInteger<I>>, Try<DecInteger<I>>>),
-    data_type: DataDesc,
-    marker: PhantomData<fn(I) -> I>,
+/// Parses a possibly-negative integer in either decimal, octal (with
+/// a leading 0), or hexidecimal (with a leading 0x).
+pub fn integer<N, I>() -> Integer<N, I>
+    where N: Num + num::Integer,
+          I: Stream<Item = char>
+{
+    Integer {
+        parser: (
+            optional(token('-')),
+            token('0')
+                .with(token('x').with(hex_integer())
+                      .or(oct_integer()))
+                .or(dec_integer())
+        ),
+        marker: PhantomData,
+    }
 }
 
-impl<I: Stream<Item = char>> Parser for Integer<I> {
+pub struct Integer<N, I>
+    where N: Num + num::Integer,
+          I: Stream<Item = char>
+{
+    parser: (Optional<Token<I>>, Or<With<Token<I>, Or<With<Token<I>, HexInteger<N, I>>, OctInteger<N, I>>>, DecInteger<N, I>>),
+    marker: PhantomData<fn(I) -> N>,
+}
+
+impl<N, I> Parser for Integer<N, I>
+    where N: Num + num::Integer,
+          I: Stream<Item = char>
+{
     type Input = I;
-    type Output = NumericValue;
+    type Output = N;
 
-    #[inline]
     fn parse_lazy(&mut self, input: Self::Input) -> ConsumedResult<Self::Output, Self::Input> {
-        self.parser.parse_lazy(input).map(|(neg, num)| {
-            use data_type::NumericValue::*;
-
-            if let Some(..) = neg {
-                match num {
-                    UByte(b)  => SByte (-1 * b as  i8),
-                    UShort(s) => SShort(-1 * s as i16),
-                    ULong(l)  => SLong (-1 * l as i32),
-                    UQuad(q)  => SQuad (-1 * q as i64),
-
-                    SByte(b)  => SByte (-1 * b),
-                    SShort(s) => SShort(-1 * s),
-                    SLong(l)  => SLong (-1 * l),
-                    SQuad(q)  => SQuad (-1 * q),
-                }
-            } else {
-                num
+        self.parser.parse_lazy(input).map(|(opt_neg, num)| {
+            match opt_neg.map(|_| N::from_str_radix("-1", 10)) {
+                None => num,
+                Some(Ok(minus_one)) => {
+                    num * minus_one
+                },
+                Some(Err(..)) => {
+                    panic!("Could not negate number");
+                },
             }
         })
     }
@@ -154,199 +194,266 @@ impl<I: Stream<Item = char>> Parser for Integer<I> {
     }
 }
 
-pub fn integer<I: Stream<Item = char>>(data_type: DataDesc) -> Integer<I> {
-    Integer {
-        parser: (optional(token('-')), try(hex_integer(data_type.clone())).or(try(dec_integer(data_type.clone())))),
-        data_type: data_type,
-        marker: PhantomData,
-    }
-}
-
-#[derive(Clone)]
-pub struct HexInteger<I: Stream<Item = char>> {
-    parser: With<Str<I>, Many1<String, HexDigit<I>>>,
-    data_type: DataDesc,
-    marker: PhantomData<fn(I) -> I>,
-}
-
-impl<I: Stream<Item = char>> Parser for HexInteger<I> {
-    type Input = I;
-    type Output = NumericValue;
-
-    #[inline]
-    fn parse_lazy(&mut self, input: Self::Input) -> ConsumedResult<Self::Output, Self::Input> {
-        self.parser.parse_lazy(input).map(|num| {
-            NumericValue::from_described_str_radix(&self.data_type, &num, 16)
-        })
-    }
-
-    fn add_error(&mut self, errors: &mut ParseError<Self::Input>) {
-        self.parser.add_error(errors)
-    }
-}
-
-#[inline(always)]
-pub fn hex_integer<I>(data_type: DataDesc) -> HexInteger<I> where I: Stream<Item = char> {
+/// Parses a non-negative hexidecimal integer.
+pub fn hex_integer<N, I>() -> HexInteger<N, I>
+    where N: Num + num::Integer,
+          I: Stream<Item = char>
+{
     HexInteger {
-        parser: string("0x").with(many1::<String, _>(hex_digit())),
-        data_type: data_type,
+        parser: many1::<String, _>(hex_digit()),
         marker: PhantomData,
     }
 }
 
-#[derive(Clone)]
-pub struct DecInteger<I: Stream<Item = char>> {
-    parser: Many1<String, Digit<I>>,
-    data_type: DataDesc,
-    marker: PhantomData<fn(I) -> I>,
+pub struct HexInteger<N, I>
+    where N: Num + num::Integer,
+          I: Stream<Item = char>
+{
+    parser: Many1<String, HexDigit<I>>,
+    marker: PhantomData<fn(I) -> N>,
 }
 
-impl<I: Stream<Item = char>> Parser for DecInteger<I> {
-    type Input = I;
-    type Output = NumericValue;
-
-    #[inline]
-    fn parse_lazy(&mut self, input: Self::Input) -> ConsumedResult<Self::Output, Self::Input> {
-        self.parser.parse_lazy(input).map(|num| {
-            NumericValue::from_described_str_radix(&self.data_type, num, 10)
-        })
-    }
-
-    fn add_error(&mut self, errors: &mut ParseError<Self::Input>) {
-        self.parser.add_error(errors)
-    }
-}
-
-#[inline(always)]
-pub fn dec_integer<I>(data_type: DataDesc) -> DecInteger<I> where I: Stream<Item = char> {
-    DecInteger {
-        parser: many1::<String, _>(digit()),
-        data_type: data_type,
-        marker: PhantomData,
-    }
-}
-
-pub struct OctInteger<I: Stream<Item = char>> {
-    parser: With<Token<I>, Many1<String, OctDigit<I>>>,
-    data_type: DataDesc,
-    marker: PhantomData<fn(I) -> I>,
-}
-
-impl<I: Stream<Item = char>> Parser for OctInteger<I> {
-    type Input = I;
-    type Output = NumericValue;
-
-    #[inline]
-    fn parse_lazy(&mut self, input: Self::Input) -> ConsumedResult<Self::Output, Self::Input> {
-        self.parser.parse_lazy(input).map(|num| {
-            NumericValue::from_described_str_radix(&self.data_type, num, 8)
-        })
-    }
-
-    fn add_error(&mut self, errors: &mut ParseError<Self::Input>) {
-        self.parser.add_error(errors)
-    }
-}
-
-#[inline(always)]
-pub fn oct_integer<I: Stream<Item = char>>(data_type: DataDesc) -> OctInteger<I> {
-    OctInteger {
-        parser: token('0').with(many1::<String, _>(oct_digit())),
-        data_type: data_type,
-        marker: PhantomData,
-    }
-}
-
-pub struct Escaped<T, I>(With<Token<I>, OneOf<T, I>>, PhantomData<fn(I) -> I>)
-    where T: Clone + IntoIterator<Item = char>,
-          I: Stream<Item = char>;
-
-impl<T, I> Parser for Escaped<T, I>
-    where T: Clone + IntoIterator<Item = char>,
+impl<N, I> Parser for HexInteger<N, I>
+    where N: Num + num::Integer,
           I: Stream<Item = char>
 {
     type Input = I;
-    type Output = char;
-
-    #[inline]
-    fn parse_lazy(&mut self, input: I) -> ConsumedResult<Self::Output, Self::Input> {
-        self.0.parse_lazy(input)
-    }
-
-    fn add_error(&mut self, errors: &mut ParseError<Self::Input>) {
-        self.0.add_error(errors)
-    }
-}
-
-#[inline(always)]
-pub fn escaped<T, I>(escaper: char, escapees: T) -> Escaped<T, I>
-    where T: Clone + IntoIterator<Item = char>,
-          I: Stream<Item = char>
-{
-    Escaped(token(escaper).with(one_of(escapees)), PhantomData)
-}
-
-#[derive(Clone)]
-pub struct AtMost<F, P> where P: Parser {
-    limit: u32,
-    parser: P,
-    marker: PhantomData<F>,
-}
-
-impl<F, P> Parser for AtMost<F, P>
-    where F: FromIterator<P::Output>,
-          P: Parser
-{
-    type Input = P::Input;
-    type Output = F;
+    type Output = N;
 
     fn parse_stream(&mut self, input: Self::Input) -> ParseResult<Self::Output, Self::Input> {
-        let mut iter = self.parser.by_ref().iter(input);
-        let value = iter.by_ref().take(self.limit as usize).collect();
-        iter.into_result(value)
+        use combine::primitives::{Consumed, Error};
+
+        let position = input.position();
+        let (num_str, rest) = self.parser.parse_stream(input)?;
+
+        match parse_str_radix::<N>(&num_str, 16) {
+            Ok(n) => Ok((n, rest)),
+            Err(s) => {
+                let err = ParseError::new(position, Error::Message(From::from(s)));
+                Err(Consumed::Consumed(err))
+            }
+        }
     }
 }
 
-pub fn at_most<F, P>(limit: u32, parser: P) -> AtMost<F, P>
-    where F: FromIterator<P::Output>,
-          P: Parser
+/// Parses a non-negative decimal integer.
+pub fn dec_integer<N, I>() -> DecInteger<N, I>
+    where N: Num + num::Integer,
+          I: Stream<Item = char>
 {
-    AtMost { limit: limit, parser: parser, marker: PhantomData, }
-}
-
-#[derive(Clone)]
-pub struct EscapedNum<I: Stream<Item = char>> {
-    parser: With<Token<I>, Or<(With<Token<I>, AtMost<String, HexDigit<I>>>, Value<I, u32>), (AtMost<String, OctDigit<I>>, Value<I, u32>)>>,
-    marker: PhantomData<fn(I) -> I>
-}
-
-impl<I: Stream<Item = char>> Parser for EscapedNum<I> {
-    type Input = I;
-    type Output = char;
-
-    #[inline]
-    fn parse_lazy(&mut self, input: I) -> ConsumedResult<Self::Output, Self::Input> {
-        self.parser.parse_lazy(input).map(|(string, radix)| {
-            println!("string = {:?} radix = {:?}", string, radix);
-            From::from(u8::from_str_radix(&string, radix).unwrap())
-        })
-    }
-
-    fn add_error(&mut self, errors: &mut ParseError<Self::Input>) {
-        self.parser.add_error(errors)
-    }
-}
-
-#[inline(always)]
-pub fn escaped_num<I: Stream<Item = char>>(escaper: char) -> EscapedNum<I> {
-    let oct_num = (at_most::<String, _>(3, oct_digit()), value(8));
-    let hex_num = (token('x').with(at_most::<String, _>(2, hex_digit())), value(16));
-
-    EscapedNum {
-        parser: token(escaper).with(hex_num.or(oct_num)),
+    DecInteger {
+        parser: many1::<String, _>(digit()),
         marker: PhantomData,
     }
 }
+
+pub struct DecInteger<N, I>
+    where N: Num + num::Integer,
+          I: Stream<Item = char>
+{
+    parser: Many1<String, Digit<I>>,
+    marker: PhantomData<fn(I) -> N>,
+}
+
+impl<N, I> Parser for DecInteger<N, I>
+    where N: Num + num::Integer,
+          I: Stream<Item = char>
+{
+    type Input = I;
+    type Output = N;
+
+    fn parse_stream(&mut self, input: Self::Input) -> ParseResult<Self::Output, Self::Input> {
+        use combine::primitives::{Consumed, Error};
+
+        let position = input.position();
+        let (num_str, rest) = self.parser.parse_stream(input)?;
+
+        match parse_str_radix::<N>(&num_str, 10) {
+            Ok(n) => Ok((n, rest)),
+            Err(s) => {
+                let err = ParseError::new(position, Error::Message(From::from(s)));
+                Err(Consumed::Consumed(err))
+            }
+        }
+    }
+}
+
+/// Parses a non-negative octal integer.
+pub fn oct_integer<N, I>() -> OctInteger<N, I>
+    where N: Num + num::Integer,
+          I: Stream<Item = char>
+{
+    OctInteger {
+        parser: many1::<String, _>(oct_digit()),
+        marker: PhantomData,
+    }
+}
+
+pub struct OctInteger<N, I>
+    where N: Num + num::Integer,
+          I: Stream<Item = char>
+{
+    parser: Many1<String, OctDigit<I>>,
+    marker: PhantomData<fn(I) -> N>,
+}
+
+impl<N, I> Parser for OctInteger<N, I>
+    where N: Num + num::Integer,
+          I: Stream<Item = char>
+{
+    type Input = I;
+    type Output = N;
+
+    fn parse_stream(&mut self, input: Self::Input) -> ParseResult<Self::Output, Self::Input> {
+        use combine::primitives::{Consumed, Error};
+
+        let position = input.position();
+        let (num_str, rest) = self.parser.parse_stream(input)?;
+
+        match parse_str_radix::<N>(&num_str, 8) {
+            Ok(n) => Ok((n, rest)),
+            Err(s) => {
+                let err = ParseError::new(position, Error::Message(From::from(s)));
+                Err(Consumed::Consumed(err))
+            }
+        }
+    }
+}
+
+fn parse_str_radix<N>(num_str: &str, radix: u32) -> Result<N, String>
+    where N: Num + num::Integer
+{
+    use std::mem;
+
+    match N::from_str_radix(num_str, radix) {
+        Ok(n) => Ok(n),
+        Err(..) => Err(format!(
+            "Unable to parse {:?} as a {}-bit base-{} integer",
+            num_str, mem::size_of::<N>() * 8, radix)),
+    }
+}
+
+// pub struct Escaped<T, I>
+//     where T: Clone + IntoIterator<Item = char>,
+//           I: Stream<Item = char>
+// {
+//     parser: With<Token<I>, Or<Or<With<Token<I>, AtMost<String, HexDigit<I>>>, AtMost<String, OctDigit<I>>>, OneOf<T, I>>>,
+//     marker: PhantomData<fn(I) -> I>,
+// }
+
+// impl<T, I> Parser for Escaped<T, I>
+//     where T: Clone + IntoIterator<Item = char>,
+//           I: Stream<Item = char>
+// {
+//     type Input = I;
+//     type Output = char;
+
+//     #[inline]
+//     fn parse_lazy(&mut self, input: I) -> ConsumedResult<Self::Output, Self::Input> {
+//         self.parser.parse_lazy(input)
+//     }
+
+//     fn add_error(&mut self, errors: &mut ParseError<Self::Input>) {
+//         self.parser.add_error(errors)
+//     }
+// }
+
+// #[inline(always)]
+// pub fn escaped<T, I>(escaper: char, escapees: T) -> Escaped<T, I>
+//     where T: Clone + IntoIterator<Item = char>,
+//           I: Stream<Item = char>
+// {
+//     let oct_num = at_most::<String, _>(3, oct_digit());
+//     let hex_num = token('x').with(at_most::<String, _>(2, hex_digit()));
+//     let esc_char = one_of(escapees);
+
+//     Escaped {
+//         parser: token(escaper).with(hex_num.or(oct_num).or(esc_char)),
+//         marker: PhantomData,
+//     }
+// }
+
+// #[derive(Clone)]
+// pub struct EscapedNum<I: Stream<Item = char>> {
+//     parser: With<Token<I>, Or<(With<Token<I>, AtMost<String, HexDigit<I>>>, Value<I, u32>), (AtMost<String, OctDigit<I>>, Value<I, u32>)>>,
+//     marker: PhantomData<fn(I) -> I>
+// }
+
+// impl<I: Stream<Item = char>> Parser for EscapedNum<I> {
+//     type Input = I;
+//     type Output = char;
+
+//     #[inline]
+//     fn parse_lazy(&mut self, input: I) -> ConsumedResult<Self::Output, Self::Input> {
+//         self.parser.parse_lazy(input).map(|(string, radix)| {
+//             println!("string = {:?} radix = {:?}", string, radix);
+//             From::from(u8::from_str_radix(&string, radix).unwrap())
+//         })
+//     }
+
+//     fn add_error(&mut self, errors: &mut ParseError<Self::Input>) {
+//         self.parser.add_error(errors)
+//     }
+// }
+
+// #[inline(always)]
+// pub fn escaped_num<I: Stream<Item = char>>(escaper: char) -> EscapedNum<I> {
+//     let oct_num = (at_most::<String, _>(3, oct_digit()), value(8));
+//     let hex_num = (token('x').with(at_most::<String, _>(2, hex_digit())), value(16));
+
+//     EscapedNum {
+//         parser: token(escaper).with(hex_num.or(oct_num)),
+//         marker: PhantomData,
+//     }
+// }
+
+// pub struct EscapeSequence<I, P8, P16>
+//     where I: Stream<Item = char>
+// {
+//     parser: (),
+//     marker: PhantomData<fn(I) -> I>,
+// }
+
+// fn parse_hex_char<I: Stream<Item = char>>(input: I) -> ParseResult<char, I> {
+//     use combine::StreamOnce;
+//     use combine::primitives::{Error, Consumed};
+
+//     let position = input.position();
+//     let (hex_str, input) = try!(at_most::<String, _>(2, hex_digit()).parse_stream(input));
+//     if let Ok(hex_char) = u8::from_str_radix(&hex_str, 16) {
+//         Ok((From::from(hex_char), input))
+//     } else {
+//         let errors = ParseError::new(position, Error::Expected(From::from("something")));
+//         Err(Consumed::Empty(errors))
+//     }
+// }
+
+// fn parse_oct_char<I: Stream<Item = char>>(input: I) -> ParseResult<char, I> {
+//     use combine::StreamOnce;
+//     use combine::primitives::{Error, Consumed};
+
+//     let position = input.position();
+//     let (oct_str, input) = try!(at_most::<String, _>(3, oct_digit()).parse_stream(input));
+//     if let Ok(oct_char) = u8::from_str_radix(&oct_str, 8) {
+//         Ok((From::from(oct_char), input))
+//     } else {
+//         let errors = ParseError::new(position, Error::Expected(From::from("something2")));
+//         Err(Consumed::Empty(errors))
+//     }
+// }
+
+// pub fn escape_sequence<I, P8, P16>() -> EscapeSequence<I, P8, P16>
+//     where I: Stream<Item = char>
+// {
+//     let named_char = one_of("\\nrt".chars());
+//     let hex_escape = token('x').with(parser(parse_hex_char));
+//     let oct_escape = parser(parse_oct_char);
+
+//     EscapeSequence {
+//         parser: token('\\').with(named_char.or(hex_escape).or(oct_escape)),
+//         marker: PhantomData,
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
@@ -355,30 +462,20 @@ mod tests {
 
     #[test]
     fn integers() {
-        use data_type::DataDesc::*;
-        use data_type::NumericValue::*;
-        use endian::Endian::*;
+        assert_eq!(Ok((893, "")), super::dec_integer::<u16, _>().parse("893"));
+        assert_eq!(Ok((3_551_379_183, "")), super::hex_integer::<u32, _>().parse("d3adBEEF"));
+        assert_eq!(Ok((78, "")), super::oct_integer::<i8, _>().parse("116"));
 
-        assert_eq!(
-            Ok((ULong(3_551_379_183), "")),
-            super::integer(Long { endian: Native, signed: false }).parse("0xd3adBEEF"));
+        assert_eq!(Ok((20, "")), super::integer::<i32, _>().parse("20"));
+        assert_eq!(Ok((20, "")), super::integer::<i32, _>().parse("0x14"));
+        assert_eq!(Ok((20, "")), super::integer::<i32, _>().parse("024"));
 
-        assert_eq!(
-            Ok((SShort(314), "")),
-            super::integer(Short { endian: Native, signed: true }).parse("314"));
+        assert_eq!(Ok((-20, "")), super::integer::<i32, _>().parse("-20"));
+        assert_eq!(Ok((-20, "")), super::integer::<i32, _>().parse("-0x14"));
+        assert_eq!(Ok((-20, "")), super::integer::<i32, _>().parse("-024"));
 
-        assert_eq!(
-            Ok((SShort(-314), "")),
-            super::integer(Short { endian: Native, signed: true }).parse("-314"));
-
-        assert_eq!(
-            Ok((UByte(0), "")),
-            super::integer(Byte { signed: false }).parse("0"));
-
-        // Should this actually be octal?
-        assert_eq!(
-            Ok((UShort(314), "")),
-            super::integer(Short { endian: Native, signed: false }).parse("0314"));
+        assert!(super::hex_integer::<u16, _>().parse("1FFFF").is_err());
+        assert!(super::integer::<u32, _>().parse("-1025").is_err());
     }
 
     #[test]
@@ -435,25 +532,25 @@ mod tests {
         assert_eq!(Ok((Double(Little), "")), super::data_type().parse("ledouble"));
     }
 
-    #[test]
-    fn escaped_chars() {
-        let mut parser = super::escaped('\\', "nrt\\'\"".chars());
-        assert_eq!(Ok(('\n', "")), parser.parse("\\n"));
-        assert_eq!(Ok(('\r', "")), parser.parse("\\r"));
-        assert_eq!(Ok(('\t', "")), parser.parse("\\t"));
-        assert_eq!(Ok(('\'', "")), parser.parse("\\'"));
-        assert_eq!(Ok(('"', "")), parser.parse("\\\""));
-        assert_eq!(Ok(('\0', "")), parser.parse("\\0"));
-        assert_eq!(Ok(('\x0E', "")), parser.parse("\\016"));
-    }
+    // #[test]
+    // fn escaped_chars() {
+    //     let mut parser = super::escaped('\\', "nrt\\'\"".chars());
+    //     assert_eq!(Ok(('\n', "")), parser.parse("\\n"));
+    //     assert_eq!(Ok(('\r', "")), parser.parse("\\r"));
+    //     assert_eq!(Ok(('\t', "")), parser.parse("\\t"));
+    //     assert_eq!(Ok(('\'', "")), parser.parse("\\'"));
+    //     assert_eq!(Ok(('"', "")), parser.parse("\\\""));
+    //     assert_eq!(Ok(('\0', "")), parser.parse("\\0"));
+    //     assert_eq!(Ok(('\x0E', "")), parser.parse("\\016"));
+    // }
 
-    #[test]
-    fn escaped_numbers() {
-        assert_eq!(Ok(('\u{D2}', "")), super::escaped_num('\\').parse("\\322"));
-        assert_eq!(Ok(('\u{D2}', "322")), super::escaped_num('\\').parse("\\322322"));
-        assert_eq!(Ok(('\n', "")), super::escaped_num('\\').parse("\\x0a"));
-        assert_eq!(Ok(('\n', "abc")), super::escaped_num('\\').parse("\\x0aabc"));
-    }
+    // #[test]
+    // fn escaped_numbers() {
+    //     assert_eq!(Ok(('\u{D2}', "")), super::escaped_num('\\').parse("\\322"));
+    //     assert_eq!(Ok(('\u{D2}', "322")), super::escaped_num('\\').parse("\\322322"));
+    //     assert_eq!(Ok(('\n', "")), super::escaped_num('\\').parse("\\x0a"));
+    //     assert_eq!(Ok(('\n', "abc")), super::escaped_num('\\').parse("\\x0aabc"));
+    // }
 
     #[test]
     fn at_most_parser() {
