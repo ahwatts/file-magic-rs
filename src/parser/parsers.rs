@@ -176,17 +176,17 @@ impl<N, I> Parser for Integer<N, I>
     type Output = N;
 
     fn parse_lazy(&mut self, input: Self::Input) -> ConsumedResult<Self::Output, Self::Input> {
-        self.parser.parse_lazy(input).map(|(opt_neg, num)| {
-            match opt_neg.map(|_| N::from_str_radix("-1", 10)) {
-                None => num,
-                Some(Ok(minus_one)) => {
-                    num * minus_one
-                },
-                Some(Err(..)) => {
-                    panic!("Could not negate number");
-                },
+        self.parser.by_ref().and_then::<_, _, io::Error>(|(opt_neg, num)| {
+            if let Some(..) = opt_neg {
+                let minus_one = try! {
+                    N::from_str_radix("-1", 10)
+                        .map_err(|_| io::Error::new(ErrorKind::Other, "Could not negate number"))
+                };
+                Ok(num * minus_one)
+            } else {
+                Ok(num)
             }
-        })
+        }).parse_lazy(input)
     }
 
     fn add_error(&mut self, errors: &mut ParseError<Self::Input>) {
