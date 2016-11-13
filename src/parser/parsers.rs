@@ -333,127 +333,46 @@ fn parse_str_radix<N>(num_str: &str, radix: u32) -> Result<N, String>
     }
 }
 
-// pub struct Escaped<T, I>
-//     where T: Clone + IntoIterator<Item = char>,
-//           I: Stream<Item = char>
-// {
-//     parser: With<Token<I>, Or<Or<With<Token<I>, AtMost<String, HexDigit<I>>>, AtMost<String, OctDigit<I>>>, OneOf<T, I>>>,
-//     marker: PhantomData<fn(I) -> I>,
-// }
+pub fn escape_sequence<I>() -> EscapeSequence<I>
+    where I: Stream<Item = char>
+{
 
-// impl<T, I> Parser for Escaped<T, I>
-//     where T: Clone + IntoIterator<Item = char>,
-//           I: Stream<Item = char>
-// {
-//     type Input = I;
-//     type Output = char;
+    EscapeSequence {
+        named_char: one_of("\\nrt".chars()),
+        hex_escape: token('x').with(hex_integer::<u8, _>()),
+        oct_escape: oct_integer::<u8, _>(),
+    }
+}
 
-//     #[inline]
-//     fn parse_lazy(&mut self, input: I) -> ConsumedResult<Self::Output, Self::Input> {
-//         self.parser.parse_lazy(input)
-//     }
+pub struct EscapeSequence<I>
+    where I: Stream<Item = char>,
+{
+    named_char: OneOf<Chars<'static>, I>,
+    hex_escape: With<Token<I>, HexInteger<u8, I>>,
+    oct_escape: OctInteger<u8, I>,
+}
 
-//     fn add_error(&mut self, errors: &mut ParseError<Self::Input>) {
-//         self.parser.add_error(errors)
-//     }
-// }
+impl<I> Parser for EscapeSequence<I>
+    where I: Stream<Item = char>
+{
+    type Input = I;
+    type Output = char;
 
-// #[inline(always)]
-// pub fn escaped<T, I>(escaper: char, escapees: T) -> Escaped<T, I>
-//     where T: Clone + IntoIterator<Item = char>,
-//           I: Stream<Item = char>
-// {
-//     let oct_num = at_most::<String, _>(3, oct_digit());
-//     let hex_num = token('x').with(at_most::<String, _>(2, hex_digit()));
-//     let esc_char = one_of(escapees);
-
-//     Escaped {
-//         parser: token(escaper).with(hex_num.or(oct_num).or(esc_char)),
-//         marker: PhantomData,
-//     }
-// }
-
-// #[derive(Clone)]
-// pub struct EscapedNum<I: Stream<Item = char>> {
-//     parser: With<Token<I>, Or<(With<Token<I>, AtMost<String, HexDigit<I>>>, Value<I, u32>), (AtMost<String, OctDigit<I>>, Value<I, u32>)>>,
-//     marker: PhantomData<fn(I) -> I>
-// }
-
-// impl<I: Stream<Item = char>> Parser for EscapedNum<I> {
-//     type Input = I;
-//     type Output = char;
-
-//     #[inline]
-//     fn parse_lazy(&mut self, input: I) -> ConsumedResult<Self::Output, Self::Input> {
-//         self.parser.parse_lazy(input).map(|(string, radix)| {
-//             println!("string = {:?} radix = {:?}", string, radix);
-//             From::from(u8::from_str_radix(&string, radix).unwrap())
-//         })
-//     }
-
-//     fn add_error(&mut self, errors: &mut ParseError<Self::Input>) {
-//         self.parser.add_error(errors)
-//     }
-// }
-
-// #[inline(always)]
-// pub fn escaped_num<I: Stream<Item = char>>(escaper: char) -> EscapedNum<I> {
-//     let oct_num = (at_most::<String, _>(3, oct_digit()), value(8));
-//     let hex_num = (token('x').with(at_most::<String, _>(2, hex_digit())), value(16));
-
-//     EscapedNum {
-//         parser: token(escaper).with(hex_num.or(oct_num)),
-//         marker: PhantomData,
-//     }
-// }
-
-// pub struct EscapeSequence<I, P8, P16>
-//     where I: Stream<Item = char>
-// {
-//     parser: (),
-//     marker: PhantomData<fn(I) -> I>,
-// }
-
-// fn parse_hex_char<I: Stream<Item = char>>(input: I) -> ParseResult<char, I> {
-//     use combine::StreamOnce;
-//     use combine::primitives::{Error, Consumed};
-
-//     let position = input.position();
-//     let (hex_str, input) = try!(at_most::<String, _>(2, hex_digit()).parse_stream(input));
-//     if let Ok(hex_char) = u8::from_str_radix(&hex_str, 16) {
-//         Ok((From::from(hex_char), input))
-//     } else {
-//         let errors = ParseError::new(position, Error::Expected(From::from("something")));
-//         Err(Consumed::Empty(errors))
-//     }
-// }
-
-// fn parse_oct_char<I: Stream<Item = char>>(input: I) -> ParseResult<char, I> {
-//     use combine::StreamOnce;
-//     use combine::primitives::{Error, Consumed};
-
-//     let position = input.position();
-//     let (oct_str, input) = try!(at_most::<String, _>(3, oct_digit()).parse_stream(input));
-//     if let Ok(oct_char) = u8::from_str_radix(&oct_str, 8) {
-//         Ok((From::from(oct_char), input))
-//     } else {
-//         let errors = ParseError::new(position, Error::Expected(From::from("something2")));
-//         Err(Consumed::Empty(errors))
-//     }
-// }
-
-// pub fn escape_sequence<I, P8, P16>() -> EscapeSequence<I, P8, P16>
-//     where I: Stream<Item = char>
-// {
-//     let named_char = one_of("\\nrt".chars());
-//     let hex_escape = token('x').with(parser(parse_hex_char));
-//     let oct_escape = parser(parse_oct_char);
-
-//     EscapeSequence {
-//         parser: token('\\').with(named_char.or(hex_escape).or(oct_escape)),
-//         marker: PhantomData,
-//     }
-// }
+    fn parse_stream(&mut self, input: I) -> ParseResult<Self::Output, Self::Input> {
+        let named_parser = self.named_char.by_ref().map(|s| {
+            match s {
+                'n' => '\n',
+                'r' => '\r',
+                't' => '\t',
+                '\\' => '\\',
+                _ => unreachable!(),
+            }
+        });
+        let hex_parser = self.hex_escape.by_ref().map(|n| From::from(n));
+        let oct_parser = self.oct_escape.by_ref().map(|n| From::from(n));
+        token('\\').with(named_parser.or(token('x').with(hex_parser)).or(oct_parser)).parse_stream(input)
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -532,25 +451,15 @@ mod tests {
         assert_eq!(Ok((Double(Little), "")), super::data_type().parse("ledouble"));
     }
 
-    // #[test]
-    // fn escaped_chars() {
-    //     let mut parser = super::escaped('\\', "nrt\\'\"".chars());
-    //     assert_eq!(Ok(('\n', "")), parser.parse("\\n"));
-    //     assert_eq!(Ok(('\r', "")), parser.parse("\\r"));
-    //     assert_eq!(Ok(('\t', "")), parser.parse("\\t"));
-    //     assert_eq!(Ok(('\'', "")), parser.parse("\\'"));
-    //     assert_eq!(Ok(('"', "")), parser.parse("\\\""));
-    //     assert_eq!(Ok(('\0', "")), parser.parse("\\0"));
-    //     assert_eq!(Ok(('\x0E', "")), parser.parse("\\016"));
-    // }
-
-    // #[test]
-    // fn escaped_numbers() {
-    //     assert_eq!(Ok(('\u{D2}', "")), super::escaped_num('\\').parse("\\322"));
-    //     assert_eq!(Ok(('\u{D2}', "322")), super::escaped_num('\\').parse("\\322322"));
-    //     assert_eq!(Ok(('\n', "")), super::escaped_num('\\').parse("\\x0a"));
-    //     assert_eq!(Ok(('\n', "abc")), super::escaped_num('\\').parse("\\x0aabc"));
-    // }
+    #[test]
+    fn escaped_chars() {
+        assert_eq!(Ok(('\n', "")), super::escape_sequence().parse("\\n"));
+        assert_eq!(Ok(('\r', "")), super::escape_sequence().parse("\\r"));
+        assert_eq!(Ok(('\t', "")), super::escape_sequence().parse("\\t"));
+        assert_eq!(Ok(('\\', "")), super::escape_sequence().parse("\\\\"));
+        assert_eq!(Ok(('\0', "")), super::escape_sequence().parse("\\0"));
+        assert_eq!(Ok(('\x0E', "")), super::escape_sequence().parse("\\016"));
+    }
 
     #[test]
     fn at_most_parser() {
