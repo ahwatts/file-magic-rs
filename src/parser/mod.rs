@@ -1,10 +1,10 @@
 use combine::*;
 use combine::char::*;
-use data_type::{DataDesc, NumericValue};
-use endian::Endian;
+// use data_type::{DataDesc, NumericValue};
+// use endian::Endian;
 use magic::*;
 use error::{MagicError, MagicResult};
-use self::parsers::*;
+// use self::parsers::*;
 use std::io::{BufRead, BufReader, Read};
 
 pub mod parsers;
@@ -119,7 +119,7 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
 
 #[cfg(test)]
 mod tests {
-    use magic::*;
+    // use magic::*;
 
     #[test]
     fn ignores_blank_lines() {
