@@ -98,7 +98,7 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
 fn offset<I>(input: I) -> CombParseResult<I, Offset>
     where I: Stream<Item = char>
 {
-    integer::<u64, _>().parse(input).map(|(num, rest)| {
+    integer().parse(input).map(|(num, rest)| {
         (Offset::direct(DirectOffset::absolute(num)), rest)
     })
 }
