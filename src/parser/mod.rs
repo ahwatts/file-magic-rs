@@ -4,7 +4,7 @@ use combine::char::*;
 // use endian::Endian;
 use magic::*;
 use error::{MagicError, MagicResult};
-// use self::parsers::*;
+use self::parsers::*;
 use std::io::{BufRead, BufReader, Read};
 
 pub mod parsers;
@@ -67,7 +67,7 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
     where I: Stream<Item = char>
 {
     let (level, rest) = try!(many::<String, _>(try(token('>'))).parse(line).map(|(lv_str, rst)| (lv_str.len(), rst)));
-    // let (offset, rest) = try!(offset(rest));
+    let (offset, rest) = try!(offset(rest));
     let (_, rest) = try!(spaces().parse(rest));
     // let ((data_type, _opt_and_val), rest) = try!(data_type_and(rest));
     let (_, rest) = try!(spaces().parse(rest));
@@ -80,7 +80,7 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
             filename: String::new(),
             line_num: 0,
             level: level as u32,
-            offset: Offset::direct(DirectOffset::absolute(0)),
+            offset: offset,
             // data_type: data_type,
             test: Test::AlwaysTrue,
             message: message,
@@ -95,17 +95,13 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
 //     Ok(((data_type, and_val), rest))
 // }
 
-// fn offset<I>(input: I) -> CombParseResult<I, Offset>
-//     where I: Stream<Item = char>
-// {
-//     integer(DataDesc::Quad { endian: Endian::Native, signed: false }).parse(input).map(|(num, rest)| {
-//         if let NumericValue::UQuad(n) = num {
-//             (Offset::direct(DirectOffset::absolute(n)), rest)
-//         } else {
-//             unreachable!()
-//         }
-//     })
-// }
+fn offset<I>(input: I) -> CombParseResult<I, Offset>
+    where I: Stream<Item = char>
+{
+    integer::<u64, _>().parse(input).map(|(num, rest)| {
+        (Offset::direct(DirectOffset::absolute(num)), rest)
+    })
+}
 
 // fn test_value<I: Stream<Item = char>>(data_type: DataDesc, input: I) -> CombParseResult<I, Test> {
 //     token('x').with(look_ahead(space())).map(|_| Test::AlwaysTrue)
@@ -119,7 +115,7 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
 
 #[cfg(test)]
 mod tests {
-    // use magic::*;
+    use magic::*;
 
     #[test]
     fn ignores_blank_lines() {
@@ -137,11 +133,11 @@ mod tests {
         assert_eq!(Ok((None, "")), super::parse_line("  \t #\t"));
     }
 
-    // #[test]
-    // fn direct_offset() {
-    //     assert_eq!(Ok((Offset::direct(DirectOffset::absolute(108)), "")), super::offset("108"));
-    //     assert_eq!(Ok((Offset::direct(DirectOffset::absolute(108)), "")), super::offset("0x6c"));
-    // }
+    #[test]
+    fn direct_offset() {
+        assert_eq!(Ok((Offset::direct(DirectOffset::absolute(108)), "")), super::offset("108"));
+        assert_eq!(Ok((Offset::direct(DirectOffset::absolute(108)), "")), super::offset("0x6c"));
+    }
 
     // #[test]
     // fn numeric_test_values() {
