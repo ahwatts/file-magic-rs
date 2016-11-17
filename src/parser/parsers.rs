@@ -1,7 +1,7 @@
 use combine::char::*;
 use combine::combinator::*;
 use combine::{ConsumedResult, ParseError, Parser, Stream, ParseResult};
-use data_type::{DataDesc};
+use data_type::{self, DataDesc};
 use magic::*;
 use num::{self, Num};
 use std::io::{self, ErrorKind};
@@ -142,10 +142,48 @@ fn translate_data_type_value(val: String) -> io::Result<DataDesc> {
     }
 }
 
+pub fn integer_bytes<'a, I>(data_type: &'a DataDesc) -> IntegerBytes<'a, I>
+    where I: Stream<Item = char>
+{
+    IntegerBytes {
+        data_type: data_type,
+        marker: PhantomData,
+    }
+}
+
+pub struct IntegerBytes<'a, I>
+    where I: Stream<Item = char>
+{
+    data_type: &'a DataDesc,
+    marker: PhantomData<fn(I) -> I>,
+}
+
+impl<'a, I> Parser for IntegerBytes<'a, I>
+    where I: Stream<Item = char>
+{
+    type Input = I;
+    type Output = Vec<u8>;
+
+    fn parse_stream(&mut self, input: Self::Input) -> ParseResult<Self::Output, Self::Input> {
+        match self.data_type {
+            &DataDesc::Byte  { signed: false } => integer::<u8, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            &DataDesc::Byte  { signed: true  } => integer::<i8, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            &DataDesc::Short { endian: _, signed: false } => integer::<u16, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            &DataDesc::Short { endian: _, signed: true  } => integer::<i16, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            &DataDesc::Long  { endian: _, signed: false } => integer::<u32, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            &DataDesc::Long  { endian: _, signed: true  } => integer::<i32, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            &DataDesc::Quad  { endian: _, signed: false } => integer::<u64, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            &DataDesc::Quad  { endian: _, signed: true  } => integer::<i64, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            _ => unreachable!(),
+        }
+    }
+}
+
+
 /// Parses a possibly-negative integer in either decimal, octal (with
 /// a leading 0), or hexidecimal (with a leading 0x).
 pub fn integer<N, I>() -> Integer<N, I>
-    where N: Num + num::Integer,
+    where N: Num + num::Integer + Clone,
           I: Stream<Item = char>
 {
     Integer {
@@ -153,7 +191,8 @@ pub fn integer<N, I>() -> Integer<N, I>
             optional(token('-')),
             token('0')
                 .with(token('x').with(hex_integer())
-                      .or(oct_integer()))
+                      .or(oct_integer())
+                      .or(value(N::zero())))
                 .or(dec_integer())
         ),
         marker: PhantomData,
@@ -161,15 +200,15 @@ pub fn integer<N, I>() -> Integer<N, I>
 }
 
 pub struct Integer<N, I>
-    where N: Num + num::Integer,
+    where N: Num + num::Integer + Clone,
           I: Stream<Item = char>
 {
-    parser: (Optional<Token<I>>, Or<With<Token<I>, Or<With<Token<I>, HexInteger<N, I>>, OctInteger<N, I>>>, DecInteger<N, I>>),
+    parser: (Optional<Token<I>>, Or<With<Token<I>, Or<Or<With<Token<I>, HexInteger<N, I>>, OctInteger<N, I>>, Value<I, N>>>, DecInteger<N, I>>),
     marker: PhantomData<fn(I) -> N>,
 }
 
 impl<N, I> Parser for Integer<N, I>
-    where N: Num + num::Integer,
+    where N: Num + num::Integer + Clone,
           I: Stream<Item = char>
 {
     type Input = I;
@@ -378,6 +417,8 @@ impl<I> Parser for EscapeSequence<I>
 mod tests {
     use combine::Parser;
     use combine::char::alpha_num;
+    use data_type::DataDesc;
+    use endian::Endian;
 
     #[test]
     fn integers() {
@@ -395,6 +436,31 @@ mod tests {
 
         assert!(super::hex_integer::<u16, _>().parse("1FFFF").is_err());
         assert!(super::integer::<u32, _>().parse("-1025").is_err());
+
+        assert_eq!(Ok((0, "")), super::integer::<i32, _>().parse("0"));
+    }
+
+    #[test]
+    fn integer_bytes() {
+        let dt = DataDesc::Long { endian: Endian::Native, signed: true };
+        let bytes = vec![ 20, 0, 0, 0 ];
+        assert_eq!(Ok((bytes.clone(), "")), super::integer_bytes(&dt).parse("20"));
+        assert_eq!(Ok((bytes.clone(), "")), super::integer_bytes(&dt).parse("0x14"));
+        assert_eq!(Ok((bytes.clone(), "")), super::integer_bytes(&dt).parse("024"));
+
+        let bytes = vec![ 236, 255, 255, 255 ];
+        assert_eq!(Ok((bytes.clone(), "")), super::integer_bytes(&dt).parse("-20"));
+        assert_eq!(Ok((bytes.clone(), "")), super::integer_bytes(&dt).parse("-0x14"));
+        assert_eq!(Ok((bytes.clone(), "")), super::integer_bytes(&dt).parse("-024"));
+
+        let dt = DataDesc::Quad { endian: Endian::Native, signed: false };
+        let bytes = vec![ 0x00, 0x40, 0x10, 0x00, 0x00, 0x02, 0x00, 0x10 ];
+        assert_eq!(Ok((bytes.clone(), "")), super::integer_bytes(&dt).parse("0x1000020000104000"));
+        assert_eq!(Ok((bytes.clone(), "")), super::integer_bytes(&dt).parse("0100000040000004040000"));
+        assert_eq!(Ok((bytes.clone(), "")), super::integer_bytes(&dt).parse("1152923703631167488"));
+
+        let bytes = vec![ 0, 0, 0, 0, 0, 0, 0, 0 ];
+        assert_eq!(Ok((bytes.clone(), "")), super::integer_bytes(&dt).parse("0"));
     }
 
     #[test]

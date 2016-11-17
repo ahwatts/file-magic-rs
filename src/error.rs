@@ -14,5 +14,10 @@ quick_error! {
         Parse(desc: String) {
             description(desc)
         }
+
+        LengthMismatch(expected: usize, actual: usize) {
+            description("Type length mismatch")
+            display("Type length mismatch: expected {} bytes, got {} bytes", expected, actual)
+        }
     }
 }
