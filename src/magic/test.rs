@@ -1,5 +1,5 @@
 use error::{MagicError, MagicResult};
-use data_type::{self, DataDesc};
+use data_type;
 use num::{Num, Integer};
 use std::fmt::Debug;
 use std::mem;
@@ -7,19 +7,19 @@ use std::io::Read;
 
 #[derive(Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
 pub struct Test {
-    data_type: DataDesc,
+    data_type: data_type::DataType,
     test_type: TestType,
 }
 
 impl Test {
-    pub fn new(desc: DataDesc, test_type: TestType) -> Test {
+    pub fn new(desc: data_type::DataType, test_type: TestType) -> Test {
         Test {
             data_type: desc,
             test_type: test_type,
         }
     }
 
-    pub fn data_type(&self) -> &DataDesc {
+    pub fn data_type(&self) -> &data_type::DataType {
         &self.data_type
     }
 
@@ -63,8 +63,8 @@ impl NumericTest {
         rv
     }
 
-    pub fn matches_file<R: Read>(&self, data_type: &DataDesc, file: &mut R) -> MagicResult<bool> {
-        use data_type::DataDesc::*;
+    pub fn matches_file<R: Read>(&self, data_type: &data_type::DataType, file: &mut R) -> MagicResult<bool> {
+        use data_type::DataType::*;
 
         let actual_data = data_type.read(file)?;
 

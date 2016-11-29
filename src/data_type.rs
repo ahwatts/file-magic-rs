@@ -6,7 +6,7 @@ use std::io::{self, Read, Write};
 use std::mem;
 
 #[derive(Clone, Debug, PartialEq, Eq, RustcEncodable, RustcDecodable)]
-pub enum DataDesc {
+pub enum DataType {
     Byte  {                 signed: bool },
     Short { endian: Endian, signed: bool },
     Long  { endian: Endian, signed: bool },
@@ -37,9 +37,9 @@ macro_rules! read_type_to_vec {
     }}
 }
 
-impl DataDesc {
+impl DataType {
     pub fn read<R: Read>(&self, file: &mut R) -> io::Result<Vec<u8>> {
-        use self::DataDesc::*;
+        use self::DataType::*;
 
         match self {
             &Byte { signed: true } => {
@@ -67,7 +67,7 @@ impl DataDesc {
     }
 
     pub fn write<N: Num + Integer + ToPrimitive, W: Write>(&self, number: N, file: &mut W) -> io::Result<()> {
-        use self::DataDesc::*;
+        use self::DataType::*;
 
         match self {
             &Byte { signed: true  } => file.write_i8(number.to_i8().unwrap()),
@@ -83,7 +83,7 @@ impl DataDesc {
     }
 
     pub fn endian(&self) -> Endian {
-        use self::DataDesc::*;
+        use self::DataType::*;
         use endian::Endian::*;
 
         match self {

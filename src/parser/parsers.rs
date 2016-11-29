@@ -1,7 +1,7 @@
 use combine::char::*;
 use combine::combinator::*;
 use combine::{ConsumedResult, ParseError, Parser, Stream, ParseResult};
-use data_type::{self, DataDesc};
+use data_type;
 use magic::*;
 use num::{self, Num};
 use std::io::{self, ErrorKind};
@@ -75,13 +75,13 @@ pub fn data_type<I: Stream<Item = char>>() -> DataType<I> {
 }
 
 pub struct DataType<I: Stream<Item = char>> {
-    parser: AndThen<Many1<String, AlphaNum<I>>, fn(String) -> io::Result<DataDesc>>,
+    parser: AndThen<Many1<String, AlphaNum<I>>, fn(String) -> io::Result<data_type::DataType>>,
     marker: PhantomData<fn(I) -> I>
 }
 
 impl<I: Stream<Item = char>> Parser for DataType<I> {
     type Input = I;
-    type Output = DataDesc;
+    type Output = data_type::DataType;
 
     #[inline]
     fn parse_lazy(&mut self, input: Self::Input) -> ConsumedResult<Self::Output, Self::Input> {
@@ -93,8 +93,8 @@ impl<I: Stream<Item = char>> Parser for DataType<I> {
     }
 }
 
-fn translate_data_type_value(val: String) -> io::Result<DataDesc> {
-    use data_type::DataDesc::*;
+fn translate_data_type_value(val: String) -> io::Result<data_type::DataType> {
+    use data_type::DataType::*;
     use endian::Endian::*;
 
     match val.as_ref() {
@@ -142,7 +142,7 @@ fn translate_data_type_value(val: String) -> io::Result<DataDesc> {
     }
 }
 
-pub fn integer_bytes<'a, I>(data_type: &'a DataDesc) -> IntegerBytes<'a, I>
+pub fn integer_bytes<'a, I>(data_type: &'a data_type::DataType) -> IntegerBytes<'a, I>
     where I: Stream<Item = char>
 {
     IntegerBytes {
@@ -154,7 +154,7 @@ pub fn integer_bytes<'a, I>(data_type: &'a DataDesc) -> IntegerBytes<'a, I>
 pub struct IntegerBytes<'a, I>
     where I: Stream<Item = char>
 {
-    data_type: &'a DataDesc,
+    data_type: &'a data_type::DataType,
     marker: PhantomData<fn(I) -> I>,
 }
 
@@ -165,15 +165,16 @@ impl<'a, I> Parser for IntegerBytes<'a, I>
     type Output = Vec<u8>;
 
     fn parse_stream(&mut self, input: Self::Input) -> ParseResult<Self::Output, Self::Input> {
+        use data_type::DataType::*;
         match self.data_type {
-            &DataDesc::Byte  { signed: false } => integer::<u8, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
-            &DataDesc::Byte  { signed: true  } => integer::<i8, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
-            &DataDesc::Short { endian: _, signed: false } => integer::<u16, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
-            &DataDesc::Short { endian: _, signed: true  } => integer::<i16, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
-            &DataDesc::Long  { endian: _, signed: false } => integer::<u32, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
-            &DataDesc::Long  { endian: _, signed: true  } => integer::<i32, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
-            &DataDesc::Quad  { endian: _, signed: false } => integer::<u64, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
-            &DataDesc::Quad  { endian: _, signed: true  } => integer::<i64, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            &Byte  { signed: false } => integer::<u8, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            &Byte  { signed: true  } => integer::<i8, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            &Short { endian: _, signed: false } => integer::<u16, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            &Short { endian: _, signed: true  } => integer::<i16, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            &Long  { endian: _, signed: false } => integer::<u32, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            &Long  { endian: _, signed: true  } => integer::<i32, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            &Quad  { endian: _, signed: false } => integer::<u64, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            &Quad  { endian: _, signed: true  } => integer::<i64, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
             _ => unreachable!(),
         }
     }
@@ -417,7 +418,7 @@ impl<I> Parser for EscapeSequence<I>
 mod tests {
     use combine::Parser;
     use combine::char::alpha_num;
-    use data_type::DataDesc;
+    use data_type;
     use endian::Endian;
 
     #[test]
@@ -442,7 +443,7 @@ mod tests {
 
     #[test]
     fn integer_bytes() {
-        let dt = DataDesc::Long { endian: Endian::Native, signed: true };
+        let dt = data_type::DataType::Long { endian: Endian::Native, signed: true };
         let bytes = vec![ 20, 0, 0, 0 ];
         assert_eq!(Ok((bytes.clone(), "")), super::integer_bytes(&dt).parse("20"));
         assert_eq!(Ok((bytes.clone(), "")), super::integer_bytes(&dt).parse("0x14"));
@@ -453,7 +454,7 @@ mod tests {
         assert_eq!(Ok((bytes.clone(), "")), super::integer_bytes(&dt).parse("-0x14"));
         assert_eq!(Ok((bytes.clone(), "")), super::integer_bytes(&dt).parse("-024"));
 
-        let dt = DataDesc::Quad { endian: Endian::Native, signed: false };
+        let dt = data_type::DataType::Quad { endian: Endian::Native, signed: false };
         let bytes = vec![ 0x00, 0x40, 0x10, 0x00, 0x00, 0x02, 0x00, 0x10 ];
         assert_eq!(Ok((bytes.clone(), "")), super::integer_bytes(&dt).parse("0x1000020000104000"));
         assert_eq!(Ok((bytes.clone(), "")), super::integer_bytes(&dt).parse("0100000040000004040000"));
@@ -475,7 +476,7 @@ mod tests {
 
     #[test]
     fn data_type() {
-        use data_type::DataDesc::*;
+        use data_type::DataType::*;
         use endian::Endian::*;
 
         assert_eq!(Ok((Byte { signed: true  }, "")), super::data_type().parse("byte"));

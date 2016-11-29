@@ -1,9 +1,8 @@
 use combine::*;
 use combine::char::*;
-use data_type::{DataDesc};
+use data_type;
 use error::{MagicError, MagicResult};
 use magic::*;
-use self::parsers::*;
 use std::io::{BufRead, BufReader, Read};
 
 pub mod parsers;
@@ -68,7 +67,7 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
     let (level, rest) = try!(many::<String, _>(try(token('>'))).parse(line).map(|(lv_str, rst)| (lv_str.len(), rst)));
     let (offset, rest) = try!(offset(rest));
     let (_, rest) = try!(spaces().parse(rest));
-    let (data_type, rest) = try!(data_type().parse(rest));
+    let (data_type, rest) = try!(data_type(rest));
     let (_, rest) = try!(spaces().parse(rest));
     let (test_type, rest) = try!(test_type(&data_type, rest));
     let (_, rest) = try!(spaces().parse(rest));
@@ -90,16 +89,22 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
 fn offset<I>(input: I) -> CombParseResult<I, Offset>
     where I: Stream<Item = char>
 {
-    integer().parse(input).map(|(num, rest)| {
+    parsers::integer().parse(input).map(|(num, rest)| {
         (Offset::direct(DirectOffset::absolute(num)), rest)
     })
 }
 
-fn test_type<I>(data_type: &DataDesc, input: I) -> CombParseResult<I, TestType>
+fn data_type<I>(input: I) -> CombParseResult<I, data_type::DataType>
+    where I: Stream<Item = char>
+{
+    parsers::data_type().parse(input)
+}
+
+fn test_type<I>(data_type: &data_type::DataType, input: I) -> CombParseResult<I, TestType>
     where I: Stream<Item = char>
 {
     token('x').with(look_ahead(space())).map(|_| TestType::AlwaysTrue)
-        .or(try((optional(numeric_operator()), integer_bytes(data_type)).map(|(op, num)| {
+        .or(try((optional(parsers::numeric_operator()), parsers::integer_bytes(data_type)).map(|(op, num)| {
             println!("num = {:?}", num);
             TestType::Number(NumericTest::new_from_bytes(op.unwrap_or(NumOp::Equal), num))
         })))
@@ -108,7 +113,7 @@ fn test_type<I>(data_type: &DataDesc, input: I) -> CombParseResult<I, TestType>
 
 #[cfg(test)]
 mod tests {
-    use data_type::DataDesc;
+    use data_type::DataType;
     use endian::Endian;
     use magic::*;
 
@@ -136,31 +141,31 @@ mod tests {
 
     #[test]
     fn always_true_test_type() {
-        let dt = DataDesc::Byte { signed: false };
+        let dt = DataType::Byte { signed: false };
         assert_eq!(Ok((TestType::AlwaysTrue, " ")), super::test_type(&dt, "x "));
     }
 
     #[test]
     fn numeric_test_values() {
-        let dt = DataDesc::Byte { signed: false };
+        let dt = DataType::Byte { signed: false };
         assert_eq!(Ok((TestType::AlwaysTrue, "\t")), super::test_type(&dt, "x\t"));
 
-        let dt = DataDesc::Long { endian: Endian::Native, signed: true };
+        let dt = DataType::Long { endian: Endian::Native, signed: true };
         assert_eq!(
             Ok((TestType::Number(NumericTest::new(NumOp::Equal, 305i32)), "")),
             super::test_type(&dt, "305"));
 
-        let dt = DataDesc::Quad { endian: Endian::Little, signed: true };
+        let dt = DataType::Quad { endian: Endian::Little, signed: true };
         assert_eq!(
             Ok((TestType::Number(NumericTest::new(NumOp::Equal, -305i64)), "")),
             super::test_type(&dt, "=-305"));
 
-        let dt = DataDesc::Short { endian: Endian::Big, signed: false };
+        let dt = DataType::Short { endian: Endian::Big, signed: false };
         assert_eq!(
             Ok((TestType::Number(NumericTest::new(NumOp::GreaterThan, 48_879u16)), "")),
             super::test_type(&dt, ">0xBeef"));
 
-        let dt = DataDesc::Long { endian: Endian::Native, signed: false };
+        let dt = DataType::Long { endian: Endian::Native, signed: false };
         assert_eq!(
             Ok((TestType::Number(NumericTest::new(NumOp::Equal, 263u32)), "")),
             super::test_type(&dt, "0407"));
@@ -174,7 +179,7 @@ mod tests {
             level: 0,
             offset: Offset::direct(DirectOffset::absolute(0)),
             test: Test::new(
-                DataDesc::Long { endian: Endian::Little, signed: true },
+                DataType::Long { endian: Endian::Little, signed: true },
                 TestType::Number(NumericTest::new(NumOp::Equal, 263i32))),
             message: "a.out little-endian 32-bit executable".to_string(),
         };
