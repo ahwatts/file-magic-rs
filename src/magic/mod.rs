@@ -1,6 +1,8 @@
 use error::{MagicError, MagicResult};
+use std::collections::HashMap;
 use std::iter::Peekable;
 use std::io::{Read, Seek};
+use std::rc::Rc;
 
 pub use self::entry::*;
 pub use self::offset::*;
@@ -13,7 +15,8 @@ mod test;
 #[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
 pub struct MagicSet {
     filename: String,
-    lists: Vec<MagicList>,
+    lists: Vec<Rc<MagicList>>,
+    named: HashMap<String, Rc<MagicList>>,
 }
 
 impl MagicSet {
@@ -21,6 +24,7 @@ impl MagicSet {
         MagicSet {
             filename: filename,
             lists: Vec::new(),
+            named: HashMap::new(),
         }
     }
 
@@ -39,7 +43,8 @@ impl MagicSet {
 
                 try!(list.add_entries(&mut entry_iter));
 
-                self.lists.push(list);
+                let list_owner = Rc::new(list);
+                self.lists.push(list_owner.clone());
             }
         }
 
