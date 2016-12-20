@@ -71,8 +71,9 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
     let (_, rest) = try!(spaces().parse(rest));
 
     match data_type {
-        data_type::DataType::Name(..) => {
+        mut name_dt @ data_type::DataType::Name(..) => {
             let ((name, _), rest) = try!((many::<String, _>(try(any())), eof()).parse(rest));
+            name_dt = data_type::DataType::Name(name);
 
             Ok((
                 MagicEntry {
@@ -80,8 +81,7 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
                     line_num: 0,
                     level: level as u32,
                     offset: offset,
-                    name: Some(name),
-                    test: Test::new(data_type::DataType::Byte { signed: false }, TestType::AlwaysTrue),
+                    test: Test::new(name_dt, TestType::AlwaysTrue),
                     message: "".to_string(),
                 },
                 rest
@@ -99,7 +99,6 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
                     line_num: 0,
                     level: level as u32,
                     offset: offset,
-                    name: None,
                     test: Test::new(data_type, test_type),
                     message: message,
                 },
@@ -201,7 +200,6 @@ mod tests {
             line_num: 0,
             level: 0,
             offset: Offset::direct(DirectOffset::absolute(0)),
-            name: None,
             test: Test::new(
                 DataType::Long { endian: Endian::Little, signed: true },
                 TestType::Number(NumericTest::new(NumOp::Equal, 263i32))),
@@ -219,9 +217,8 @@ mod tests {
             line_num: 0,
             level: 0,
             offset: Offset::direct(DirectOffset::absolute(0)),
-            name: Some("riff-walk".to_string()),
             test: Test::new(
-                DataType::Byte { signed: false },
+                DataType::Name("riff-walk".to_string()),
                 TestType::AlwaysTrue),
             message: "".to_string(),
         };

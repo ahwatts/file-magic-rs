@@ -10,7 +10,6 @@ pub struct MagicEntry {
     pub line_num: usize,
     pub level: u32,
     pub offset: Offset,
-    pub name: Option<String>,
     pub test: Test,
     pub message: String,
 }

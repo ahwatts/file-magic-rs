@@ -1,3 +1,4 @@
+use data_type::DataType;
 use error::{MagicError, MagicResult};
 use std::collections::HashMap;
 use std::iter::Peekable;
@@ -35,7 +36,11 @@ impl MagicSet {
             if entry.level > 0 {
                 return Err(MagicError::Parse(format!("Root magic entry does not have a level of 0: {:?}", entry)));
             } else {
-                let opt_name = entry.name.clone();
+                let opt_name = if let &DataType::Name(ref name) = entry.test.data_type() {
+                    Some(name.clone())
+                } else {
+                    None
+                };
 
                 let mut list = MagicList {
                     filename: self.filename.clone(),
