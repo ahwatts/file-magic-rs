@@ -77,7 +77,7 @@ impl NumericTest {
             &Long  { endian: _, signed: false } => self.matches_type::<u32>(&actual_data),
             &Quad  { endian: _, signed: true  } => self.matches_type::<i64>(&actual_data),
             &Quad  { endian: _, signed: false } => self.matches_type::<u64>(&actual_data),
-            _ => unreachable!(),
+            _ => unreachable!("Cannot match data type {:?}", data_type),
         }
     }
 

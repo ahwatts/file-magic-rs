@@ -51,7 +51,7 @@ fn parse_line<I>(line: I) -> CombParseResult<I, Option<MagicEntry>>
 
     match ignorer.parse(line.clone()) {
         v @ Ok((None, _)) => return v,
-        Ok((Some(..), _)) => unreachable!(),
+        Ok((Some(v), _)) => unreachable!("Parsed something from blanks or comments (!?!?): {:?}", v),
         Err(..) => {}
     }
 
@@ -69,21 +69,44 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
     let (_, rest) = try!(spaces().parse(rest));
     let (data_type, rest) = try!(data_type(rest));
     let (_, rest) = try!(spaces().parse(rest));
-    let (test_type, rest) = try!(test_type(&data_type, rest));
-    let (_, rest) = try!(spaces().parse(rest));
-    let ((message, _), rest) = try!((many::<String, _>(try(any())), eof()).parse(rest));
 
-    Ok((
-        MagicEntry {
-            filename: String::new(),
-            line_num: 0,
-            level: level as u32,
-            offset: offset,
-            test: Test::new(data_type, test_type),
-            message: message,
+    match data_type {
+        data_type::DataType::Name(..) => {
+            let ((name, _), rest) = try!((many::<String, _>(try(any())), eof()).parse(rest));
+
+            Ok((
+                MagicEntry {
+                    filename: String::new(),
+                    line_num: 0,
+                    level: level as u32,
+                    offset: offset,
+                    name: Some(name),
+                    test: Test::new(data_type::DataType::Byte { signed: false }, TestType::AlwaysTrue),
+                    message: "".to_string(),
+                },
+                rest
+            ))
         },
-        rest
-    ))
+        // Use => {},
+        _ => {
+            let (test_type, rest) = try!(test_type(&data_type, rest));
+            let (_, rest) = try!(spaces().parse(rest));
+            let ((message, _), rest) = try!((many::<String, _>(try(any())), eof()).parse(rest));
+
+            Ok((
+                MagicEntry {
+                    filename: String::new(),
+                    line_num: 0,
+                    level: level as u32,
+                    offset: offset,
+                    name: None,
+                    test: Test::new(data_type, test_type),
+                    message: message,
+                },
+                rest
+            ))
+        }
+    }
 }
 
 fn offset<I>(input: I) -> CombParseResult<I, Offset>
@@ -105,7 +128,7 @@ fn test_type<I>(data_type: &data_type::DataType, input: I) -> CombParseResult<I,
 {
     token('x').with(look_ahead(space())).map(|_| TestType::AlwaysTrue)
         .or(try((optional(parsers::numeric_operator()), parsers::integer_bytes(data_type)).map(|(op, num)| {
-            println!("num = {:?}", num);
+            // println!("num = {:?}", num);
             TestType::Number(NumericTest::new_from_bytes(op.unwrap_or(NumOp::Equal), num))
         })))
         .parse(input)
@@ -178,6 +201,7 @@ mod tests {
             line_num: 0,
             level: 0,
             offset: Offset::direct(DirectOffset::absolute(0)),
+            name: None,
             test: Test::new(
                 DataType::Long { endian: Endian::Little, signed: true },
                 TestType::Number(NumericTest::new(NumOp::Equal, 263i32))),

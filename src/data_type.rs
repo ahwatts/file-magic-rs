@@ -16,6 +16,9 @@ pub enum DataType {
 
     String,
 
+    Name(String),
+    Use(String),
+
     // Id3(Endian),
 
     // LongDate(Endian, TimeZone),
@@ -94,6 +97,7 @@ impl DataType {
             &Float(e)  => e,
             &Double(e) => e,
             &String => Native,
+            _ => unimplemented!(),
         }
     }
 }

@@ -56,7 +56,7 @@ impl<I: Stream<Item = char>> Parser for NumericOperator<I> {
                 '<' => NumOp::LessThan,
                 '>' => NumOp::GreaterThan,
                 '!' => NumOp::NotEqual,
-                _ => unreachable!(),
+                _ => unreachable!("Invalid numeric operator: {:?}", c),
             }
         })
     }
@@ -138,6 +138,9 @@ fn translate_data_type_value(val: String) -> io::Result<data_type::DataType> {
 
         "string" => Ok(String),
 
+        "name" => Ok(Name("".to_string())),
+        "use"  => Ok(Use("".to_string())),
+
         _ => Err(io::Error::new(ErrorKind::Other, format!("Unknown data type: {:?}", val))),
     }
 }
@@ -175,7 +178,7 @@ impl<'a, I> Parser for IntegerBytes<'a, I>
             &Long  { endian: _, signed: true  } => integer::<i32, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
             &Quad  { endian: _, signed: false } => integer::<u64, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
             &Quad  { endian: _, signed: true  } => integer::<i64, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
-            _ => unreachable!(),
+            _ => unreachable!("Cannot parse integer value for data type {:?}", self.data_type),
         }
     }
 }
@@ -405,7 +408,7 @@ impl<I> Parser for EscapeSequence<I>
                 'r' => '\r',
                 't' => '\t',
                 '\\' => '\\',
-                _ => unreachable!(),
+                _ => unreachable!("Invalid escape sequence: {:?}", s),
             }
         });
         let hex_parser = self.hex_escape.by_ref().map(|n| From::from(n));
