@@ -211,4 +211,22 @@ mod tests {
             "0	lelong		0407		a.out little-endian 32-bit executable"
         ));
     }
+
+    #[test]
+    fn parse_name_entry() {
+        let me = MagicEntry {
+            filename: "".to_string(),
+            line_num: 0,
+            level: 0,
+            offset: Offset::direct(DirectOffset::absolute(0)),
+            name: Some("riff-walk".to_string()),
+            test: Test::new(
+                DataType::Byte { signed: false },
+                TestType::AlwaysTrue),
+            message: "".to_string(),
+        };
+        assert_eq!(Ok((me, "")), super::entry(
+            "0	name	riff-walk"
+        ));
+    }
 }
