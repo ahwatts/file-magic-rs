@@ -14,7 +14,7 @@ pub enum DataType {
     Float(Endian),
     Double(Endian),
 
-    String,
+    // String,
 
     Name(String),
     Use(String),
@@ -96,7 +96,7 @@ impl DataType {
             &Quad  { endian: e, signed: _ } => e,
             &Float(e)  => e,
             &Double(e) => e,
-            &String => Native,
+            // &String => Native,
             _ => unimplemented!(),
         }
     }

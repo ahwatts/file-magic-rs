@@ -35,6 +35,8 @@ impl MagicSet {
             if entry.level > 0 {
                 return Err(MagicError::Parse(format!("Root magic entry does not have a level of 0: {:?}", entry)));
             } else {
+                let opt_name = entry.name.clone();
+
                 let mut list = MagicList {
                     filename: self.filename.clone(),
                     root: entry,
@@ -45,6 +47,10 @@ impl MagicSet {
 
                 let list_owner = Rc::new(list);
                 self.lists.push(list_owner.clone());
+
+                if let Some(name) = opt_name {
+                    self.named.insert(name, list_owner.clone());
+                }
             }
         }
 

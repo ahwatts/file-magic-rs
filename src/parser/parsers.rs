@@ -136,7 +136,7 @@ fn translate_data_type_value(val: String) -> io::Result<data_type::DataType> {
         "bedouble" => Ok(Double(Big)),
         "ledouble" => Ok(Double(Little)),
 
-        "string" => Ok(String),
+        // "string" => Ok(String),
 
         "name" => Ok(Name("".to_string())),
         "use"  => Ok(Use("".to_string())),
