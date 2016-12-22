@@ -14,7 +14,7 @@ pub enum DataType {
     Float(Endian),
     Double(Endian),
 
-    // String,
+    String,
 
     Name(String),
     Use(String),

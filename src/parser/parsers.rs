@@ -136,7 +136,7 @@ fn translate_data_type_value(val: String) -> io::Result<data_type::DataType> {
         "bedouble" => Ok(Double(Big)),
         "ledouble" => Ok(Double(Little)),
 
-        // "string" => Ok(String),
+        "string" => Ok(String),
 
         "name" => Ok(Name("".to_string())),
         "use"  => Ok(Use("".to_string())),
@@ -379,7 +379,6 @@ fn parse_str_radix<N>(num_str: &str, radix: u32) -> Result<N, String>
 pub fn escape_sequence<I>() -> EscapeSequence<I>
     where I: Stream<Item = char>
 {
-
     EscapeSequence {
         named_char: one_of("\\nrt".chars()),
         hex_escape: token('x').with(hex_integer::<u8, _>()),
@@ -413,7 +412,37 @@ impl<I> Parser for EscapeSequence<I>
         });
         let hex_parser = self.hex_escape.by_ref().map(|n| From::from(n));
         let oct_parser = self.oct_escape.by_ref().map(|n| From::from(n));
-        token('\\').with(named_parser.or(token('x').with(hex_parser)).or(oct_parser)).parse_stream(input)
+        token('\\').with(named_parser.or(hex_parser).or(oct_parser)).parse_stream(input)
+    }
+}
+
+pub fn escaped_string<F, I>() -> EscapedString<F, I>
+    where I: Stream<Item = char>,
+          F: FromIterator<char>,
+{
+    EscapedString(many::<F, _>(or(
+        escape_sequence(),
+        none_of(" ".chars())
+    )))
+}
+
+pub struct EscapedString<F, I>(Many<F, Or<EscapeSequence<I>, NoneOf<Chars<'static>, I>>>)
+    where I: Stream<Item = char>,
+          F: FromIterator<char>;
+
+impl<F, I> Parser for EscapedString<F, I>
+    where I: Stream<Item = char>,
+          F: FromIterator<char>
+{
+    type Input = I;
+    type Output = F;
+
+    fn parse_lazy(&mut self, input: Self::Input) -> ConsumedResult<Self::Output, Self::Input> {
+        self.0.parse_lazy(input)
+    }
+
+    fn add_error(&mut self, errors: &mut ParseError<Self::Input>) {
+        self.0.add_error(errors)
     }
 }
 
@@ -423,6 +452,11 @@ mod tests {
     use combine::char::alpha_num;
     use data_type;
     use endian::Endian;
+
+    #[test]
+    fn escaped_strings() {
+        assert_eq!(Ok((String::from("fmt "), "")), super::escaped_string::<String, _>().parse("fmt\\x20"));
+    }
 
     #[test]
     fn integers() {
@@ -529,6 +563,7 @@ mod tests {
         assert_eq!(Ok(('\\', "")), super::escape_sequence().parse("\\\\"));
         assert_eq!(Ok(('\0', "")), super::escape_sequence().parse("\\0"));
         assert_eq!(Ok(('\x0E', "")), super::escape_sequence().parse("\\016"));
+        assert_eq!(Ok((' ', "")), super::escape_sequence().parse("\\x20"));
     }
 
     #[test]
