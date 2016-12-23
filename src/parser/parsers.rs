@@ -66,6 +66,34 @@ impl<I: Stream<Item = char>> Parser for NumericOperator<I> {
     }
 }
 
+/// Parses a string operator.
+pub fn string_operator<I: Stream<Item = char>>() -> StringOperator<I> {
+    StringOperator(one_of("=<>".chars()), PhantomData)
+}
+
+pub struct StringOperator<I>(OneOf<Chars<'static>, I>, PhantomData<fn(I) -> I>)
+    where I: Stream<Item = char>;
+
+impl<I: Stream<Item = char>> Parser for StringOperator<I> {
+    type Input = I;
+    type Output = StringOp;
+
+    fn parse_lazy(&mut self, input: Self::Input) -> ConsumedResult<Self::Output, Self::Input> {
+        self.0.parse_lazy(input).map(|c| {
+            match c {
+                '=' => StringOp::Equal,
+                '<' => StringOp::LexBefore,
+                '>' => StringOp::LexAfter,
+                _ => unreachable!("Invalid string operator: {:?}", c),
+            }
+        })
+    }
+
+    fn add_error(&mut self, errors: &mut ParseError<Self::Input>) {
+        self.0.add_error(errors)
+    }
+}
+
 /// Parses a data type descriptor.
 pub fn data_type<I: Stream<Item = char>>() -> DataType<I> {
     DataType {
@@ -509,6 +537,15 @@ mod tests {
         assert_eq!(Ok((GreaterThan, "")), super::numeric_operator().parse(">"));
         assert_eq!(Ok((LessThan, "")),    super::numeric_operator().parse("<"));
         assert_eq!(Ok((NotEqual, "")),    super::numeric_operator().parse("!"));
+    }
+
+    #[test]
+    fn string_operators() {
+        use magic::StringOp::*;
+
+        assert_eq!(Ok((Equal,     "")), super::string_operator().parse("="));
+        assert_eq!(Ok((LexBefore, "")), super::string_operator().parse("<"));
+        assert_eq!(Ok((LexAfter,  "")), super::string_operator().parse(">"));
     }
 
     #[test]

@@ -127,7 +127,6 @@ fn test_type<I>(data_type: &data_type::DataType, input: I) -> CombParseResult<I,
 {
     token('x').with(look_ahead(space())).map(|_| TestType::AlwaysTrue)
         .or(try((optional(parsers::numeric_operator()), parsers::integer_bytes(data_type)).map(|(op, num)| {
-            // println!("num = {:?}", num);
             TestType::Number(NumericTest::new_from_bytes(op.unwrap_or(NumOp::Equal), num))
         })))
         .parse(input)

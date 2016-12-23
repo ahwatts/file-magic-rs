@@ -122,6 +122,13 @@ impl NumOp {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, RustcEncodable, RustcDecodable)]
+pub enum StringOp {
+    Equal,
+    LexBefore,
+    LexAfter,
+}
+
 #[cfg(test)]
 mod tests {
     use super::{NumOp, NumericTest};
