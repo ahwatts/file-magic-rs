@@ -129,6 +129,9 @@ fn test_type<I>(data_type: &data_type::DataType, input: I) -> CombParseResult<I,
         .or(try((optional(parsers::numeric_operator()), parsers::integer_bytes(data_type)).map(|(op, num)| {
             TestType::Number(NumericTest::new_from_bytes(op.unwrap_or(NumOp::Equal), num))
         })))
+        .or(try((optional(parsers::string_operator()), parsers::escaped_string::<String, _>()).map(|(op, string)| {
+            TestType::String(StringTest::new(op.unwrap_or(StringOp::Equal), string))
+        })))
         .parse(input)
 }
 

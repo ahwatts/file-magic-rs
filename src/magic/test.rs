@@ -31,6 +31,7 @@ impl Test {
         match self.test_type {
             TestType::AlwaysTrue => Ok(true),
             TestType::Number(ref num_test) => num_test.matches_file(&self.data_type, file),
+            TestType::String(ref str_test) => str_test.matches_file(file),
         }
     }
 }
@@ -39,6 +40,7 @@ impl Test {
 pub enum TestType {
     AlwaysTrue,
     Number(NumericTest),
+    String(StringTest),
 }
 
 #[derive(Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
@@ -119,6 +121,25 @@ impl NumOp {
             &GreaterThan => lhs  > rhs,
             &NotEqual    => lhs != rhs,
         }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
+pub struct StringTest {
+    logic_op: StringOp,
+    test_val: String,
+}
+
+impl StringTest {
+    pub fn new<S: Into<String>>(op: StringOp, val: S) -> StringTest {
+        StringTest {
+            logic_op: op,
+            test_val: val.into(),
+        }
+    }
+
+    pub fn matches_file<R: Read>(&self, _file: &mut R) -> MagicResult<bool> {
+        Ok(false)
     }
 }
 
