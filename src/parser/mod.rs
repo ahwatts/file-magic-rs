@@ -125,14 +125,19 @@ fn data_type<I>(input: I) -> CombParseResult<I, data_type::DataType>
 fn test_type<I>(data_type: &data_type::DataType, input: I) -> CombParseResult<I, TestType>
     where I: Stream<Item = char>
 {
-    token('x').with(look_ahead(space())).map(|_| TestType::AlwaysTrue)
-        .or(try((optional(parsers::numeric_operator()), parsers::integer_bytes(data_type)).map(|(op, num)| {
-            TestType::Number(NumericTest::new_from_bytes(op.unwrap_or(NumOp::Equal), num))
-        })))
-        .or(try((optional(parsers::string_operator()), parsers::escaped_string::<String, _>()).map(|(op, string)| {
+    if let ok_rslt @ Ok(..) = try(token('x').with(look_ahead(space())).map(|_| TestType::AlwaysTrue)).parse(input.clone()) {
+        return ok_rslt;
+    }
+
+    if data_type == &data_type::DataType::String {
+        (optional(parsers::string_operator()), parsers::escaped_string::<String, _>()).map(|(op, string)| {
             TestType::String(StringTest::new(op.unwrap_or(StringOp::Equal), string))
-        })))
-        .parse(input)
+        }).parse(input)
+    } else {
+        (optional(parsers::numeric_operator()), parsers::integer_bytes(data_type)).map(|(op, num)| {
+            TestType::Number(NumericTest::new_from_bytes(op.unwrap_or(NumOp::Equal), num))
+        }).parse(input)
+    }
 }
 
 #[cfg(test)]
@@ -200,7 +205,7 @@ mod tests {
         let dt = DataType::String;
         assert_eq!(
             Ok((TestType::String(StringTest::new(StringOp::Equal, "fmt ")), "")),
-            super::test_type(&dt, "fmt\x20"));
+            super::test_type(&dt, "fmt\\x20"));
     }
 
     #[test]
