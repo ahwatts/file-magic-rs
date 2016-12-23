@@ -196,6 +196,14 @@ mod tests {
     }
 
     #[test]
+    fn string_test_values() {
+        let dt = DataType::String;
+        assert_eq!(
+            Ok((TestType::String(StringTest::new(StringOp::Equal, "fmt ")), "")),
+            super::test_type(&dt, "fmt\x20"));
+    }
+
+    #[test]
     fn parse_entry() {
         let me = MagicEntry {
             filename: "".to_string(),
