@@ -32,6 +32,7 @@ impl Test {
             TestType::AlwaysTrue => Ok(true),
             TestType::Number(ref num_test) => num_test.matches_file(&self.data_type, file),
             TestType::String(ref str_test) => str_test.matches_file(file),
+            TestType::UseList(..) => unimplemented!(),
         }
     }
 }
@@ -41,6 +42,7 @@ pub enum TestType {
     AlwaysTrue,
     Number(NumericTest),
     String(StringTest),
+    UseList(String),
 }
 
 #[derive(Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]

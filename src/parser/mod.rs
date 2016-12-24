@@ -87,7 +87,22 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
                 rest
             ))
         },
-        // Use => {},
+        mut use_dt @ data_type::DataType::Use(..) => {
+            let ((name, _), rest) = try!((many::<String, _>(try(any())), eof()).parse(rest));
+            use_dt = data_type::DataType::Use(name.clone());
+
+            Ok((
+                MagicEntry {
+                    filename: String::new(),
+                    line_num: 0,
+                    level: level as u32,
+                    offset: offset,
+                    test: Test::new(use_dt, TestType::UseList(name)),
+                    message: "".to_string(),
+                },
+                rest
+            ))
+        },
         _ => {
             let (test_type, rest) = try!(test_type(&data_type, rest));
             let (_, rest) = try!(spaces().parse(rest));
