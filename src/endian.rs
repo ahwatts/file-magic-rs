@@ -40,7 +40,14 @@ impl Endian {
     read_bytes_fn!(f64, read_f64);
 }
 
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Pdp11Endian {}
+
+impl Default for Pdp11Endian {
+    fn default() -> Pdp11Endian {
+        unreachable!()
+    }
+}
 
 impl ByteOrder for Pdp11Endian {
     fn read_u16(buf: &[u8]) -> u16 {

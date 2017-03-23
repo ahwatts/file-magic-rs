@@ -58,12 +58,12 @@ impl DataType {
                 Ok(vec)
             }
 
-            &Short { endian: _, signed: true  } => read_type_to_vec!(self, file, read_i16, write_i16),
-            &Short { endian: _, signed: false } => read_type_to_vec!(self, file, read_u16, write_u16),
-            &Long  { endian: _, signed: true  } => read_type_to_vec!(self, file, read_i32, write_i32),
-            &Long  { endian: _, signed: false } => read_type_to_vec!(self, file, read_u32, write_u32),
-            &Quad  { endian: _, signed: true  } => read_type_to_vec!(self, file, read_i64, write_i64),
-            &Quad  { endian: _, signed: false } => read_type_to_vec!(self, file, read_u64, write_u64),
+            &Short { signed: true,  .. } => read_type_to_vec!(self, file, read_i16, write_i16),
+            &Short { signed: false, .. } => read_type_to_vec!(self, file, read_u16, write_u16),
+            &Long  { signed: true,  .. } => read_type_to_vec!(self, file, read_i32, write_i32),
+            &Long  { signed: false, .. } => read_type_to_vec!(self, file, read_u32, write_u32),
+            &Quad  { signed: true,  .. } => read_type_to_vec!(self, file, read_i64, write_i64),
+            &Quad  { signed: false, .. } => read_type_to_vec!(self, file, read_u64, write_u64),
 
             _ => unimplemented!(),
         }
@@ -75,12 +75,12 @@ impl DataType {
         match self {
             &Byte { signed: true  } => file.write_i8(number.to_i8().unwrap()),
             &Byte { signed: false } => file.write_u8(number.to_u8().unwrap()),
-            &Short { endian: _, signed: true  } => file.write_i16::<NativeEndian>(number.to_i16().unwrap()),
-            &Short { endian: _, signed: false } => file.write_u16::<NativeEndian>(number.to_u16().unwrap()),
-            &Long  { endian: _, signed: true  } => file.write_i32::<NativeEndian>(number.to_i32().unwrap()),
-            &Long  { endian: _, signed: false } => file.write_u32::<NativeEndian>(number.to_u32().unwrap()),
-            &Quad  { endian: _, signed: true  } => file.write_i64::<NativeEndian>(number.to_i64().unwrap()),
-            &Quad  { endian: _, signed: false } => file.write_u64::<NativeEndian>(number.to_u64().unwrap()),
+            &Short { signed: true,  .. } => file.write_i16::<NativeEndian>(number.to_i16().unwrap()),
+            &Short { signed: false, .. } => file.write_u16::<NativeEndian>(number.to_u16().unwrap()),
+            &Long  { signed: true,  .. } => file.write_i32::<NativeEndian>(number.to_i32().unwrap()),
+            &Long  { signed: false, .. } => file.write_u32::<NativeEndian>(number.to_u32().unwrap()),
+            &Quad  { signed: true,  .. } => file.write_i64::<NativeEndian>(number.to_i64().unwrap()),
+            &Quad  { signed: false, .. } => file.write_u64::<NativeEndian>(number.to_u64().unwrap()),
             _ => unimplemented!(),
         }
     }
@@ -96,7 +96,6 @@ impl DataType {
             &Quad  { endian: e, signed: _ } => e,
             &Float(e)  => e,
             &Double(e) => e,
-            // &String => Native,
             _ => unimplemented!(),
         }
     }
