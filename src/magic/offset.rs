@@ -116,6 +116,9 @@ mod tests {
         let mut opened = Cursor::new(file);
         DirectOffset::Absolute(40).seek_to(&mut opened).unwrap();
         assert_eq!(40, opened.position());
+
+        Offset::Direct(DirectOffset::Absolute(1000)).seek_to(&mut opened).unwrap();
+        assert_eq!(1000, opened.position());
     }
 
     #[test]
@@ -125,5 +128,8 @@ mod tests {
         opened.seek(SeekFrom::Start(40)).unwrap();
         DirectOffset::Relative(-10).seek_to(&mut opened).unwrap();
         assert_eq!(30, opened.position());
+
+        Offset::Direct(DirectOffset::Relative(500)).seek_to(&mut opened).unwrap();
+        assert_eq!(530, opened.position());
     }
 }
