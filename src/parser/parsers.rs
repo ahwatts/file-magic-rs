@@ -2,7 +2,7 @@ use combine::char::*;
 use combine::combinator::*;
 use combine::{ConsumedResult, ParseError, Parser, Stream, ParseResult};
 use data_type;
-use magic::*;
+use magic;
 use num::{self, Num};
 use std::io::{self, ErrorKind};
 use std::iter::FromIterator;
@@ -47,15 +47,15 @@ pub struct NumericOperator<I>(OneOf<Chars<'static>, I>, PhantomData<fn(I) -> I>)
 
 impl<I: Stream<Item = char>> Parser for NumericOperator<I> {
     type Input = I;
-    type Output = NumOp;
+    type Output = magic::NumOp;
 
     fn parse_lazy(&mut self, input: Self::Input) -> ConsumedResult<Self::Output, Self::Input> {
         self.0.parse_lazy(input).map(|c| {
             match c {
-                '=' => NumOp::Equal,
-                '<' => NumOp::LessThan,
-                '>' => NumOp::GreaterThan,
-                '!' => NumOp::NotEqual,
+                '=' => magic::NumOp::Equal,
+                '<' => magic::NumOp::LessThan,
+                '>' => magic::NumOp::GreaterThan,
+                '!' => magic::NumOp::NotEqual,
                 _ => unreachable!("Invalid numeric operator: {:?}", c),
             }
         })
@@ -76,14 +76,14 @@ pub struct StringOperator<I>(OneOf<Chars<'static>, I>, PhantomData<fn(I) -> I>)
 
 impl<I: Stream<Item = char>> Parser for StringOperator<I> {
     type Input = I;
-    type Output = StringOp;
+    type Output = magic::StringOp;
 
     fn parse_lazy(&mut self, input: Self::Input) -> ConsumedResult<Self::Output, Self::Input> {
         self.0.parse_lazy(input).map(|c| {
             match c {
-                '=' => StringOp::Equal,
-                '<' => StringOp::LexBefore,
-                '>' => StringOp::LexAfter,
+                '=' => magic::StringOp::Equal,
+                '<' => magic::StringOp::LexBefore,
+                '>' => magic::StringOp::LexAfter,
                 _ => unreachable!("Invalid string operator: {:?}", c),
             }
         })
@@ -467,6 +467,35 @@ impl<F, I> Parser for EscapedString<F, I>
 
     fn parse_lazy(&mut self, input: Self::Input) -> ConsumedResult<Self::Output, Self::Input> {
         self.0.parse_lazy(input)
+    }
+
+    fn add_error(&mut self, errors: &mut ParseError<Self::Input>) {
+        self.0.add_error(errors)
+    }
+}
+
+pub fn direct_offset<I>() -> DirectOffset<I>
+    where I: Stream<Item = char>
+{
+    DirectOffset(optional(token('&')).and(integer()))
+}
+
+pub struct DirectOffset<I>((Optional<Token<I>>, Integer<i64, I>))
+    where I: Stream<Item = char>;
+
+impl<I> Parser for DirectOffset<I>
+    where I: Stream<Item = char>
+{
+    type Input = I;
+    type Output = magic::DirectOffset;
+
+    fn parse_lazy(&mut self, input: Self::Input) -> ConsumedResult<Self::Output, Self::Input> {
+        self.0.parse_lazy(input).map(|(opt_amp, off)| {
+            match opt_amp {
+                Some(..) => magic::DirectOffset::Relative(off),
+                None => magic::DirectOffset::Absolute(off as u64),
+            }
+        })
     }
 
     fn add_error(&mut self, errors: &mut ParseError<Self::Input>) {

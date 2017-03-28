@@ -126,8 +126,8 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
 fn offset<I>(input: I) -> CombParseResult<I, Offset>
     where I: Stream<Item = char>
 {
-    parsers::integer().parse(input).map(|(num, rest)| {
-        (Offset::direct(DirectOffset::absolute(num)), rest)
+    parsers::direct_offset().parse(input).map(|(off, rest)| {
+        (Offset::Direct(off), rest)
     })
 }
 
@@ -179,8 +179,10 @@ mod tests {
 
     #[test]
     fn direct_offset() {
-        assert_eq!(Ok((Offset::direct(DirectOffset::absolute(108)), "")), super::offset("108"));
-        assert_eq!(Ok((Offset::direct(DirectOffset::absolute(108)), "")), super::offset("0x6c"));
+        assert_eq!(Ok((Offset::Direct(DirectOffset::Absolute(108)), "")), super::offset("108"));
+        assert_eq!(Ok((Offset::Direct(DirectOffset::Absolute(108)), "")), super::offset("0x6c"));
+        assert_eq!(Ok((Offset::Direct(DirectOffset::Relative(-108)), "")), super::offset("&-108"));
+        assert_eq!(Ok((Offset::Direct(DirectOffset::Relative(108)), "")), super::offset("&0x6c"));
     }
 
     #[test]
