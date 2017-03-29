@@ -30,7 +30,8 @@ pub fn parse_set<R: Read>(filename: String, input: &mut R) -> MagicResult<MagicS
                 }
             },
             Err(err) => {
-                return Err(MagicError::Parse(format!("Parse error on line {}: {}", line_num, err)));
+                let translated = err.translate_position(line.as_str());
+                return Err(MagicError::Parse(format!("Parse error on line {}: {}", line_num, translated)));
             }
         }
     }
