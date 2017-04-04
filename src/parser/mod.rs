@@ -127,9 +127,7 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
 fn offset<I>(input: I) -> CombParseResult<I, Offset>
     where I: Stream<Item = char>
 {
-    parsers::direct_offset().parse(input).map(|(off, rest)| {
-        (Offset::Direct(off), rest)
-    })
+    parsers::offset().parse(input)
 }
 
 fn data_type<I>(input: I) -> CombParseResult<I, data_type::DataType>
