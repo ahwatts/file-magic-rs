@@ -509,7 +509,7 @@ pub fn indirect_offset<I>() -> IndirectOffset<I>
     IndirectOffset(PhantomData)
 }
 
-pub struct IndirectOffset<I>(PhantomData<I>)
+pub struct IndirectOffset<I>(PhantomData<fn(I) -> I>)
     where I: Stream<Item = char>;
 
 impl<I> Parser for IndirectOffset<I>
@@ -525,8 +525,8 @@ impl<I> Parser for IndirectOffset<I>
         let data_type_parser = (one_of(",.".chars()), one_of("bislBISLm".chars()));
         let bias_parser = (one_of("+-".chars()), integer::<i64, _>());
         let inner_parser = direct_offset().and(optional(data_type_parser).and(optional(bias_parser)));
-        optional(token('&')).and(between(token('('), token(')'), inner_parser)).parse_stream(input)
-            .map(|((_opt_amp, (direct_offset, (opt_data_type, opt_bias))), rest)| {
+        between(token('('), token(')'), inner_parser).parse_stream(input)
+            .map(|((direct_offset, (opt_data_type, opt_bias)), rest)| {
                 let data_type = match opt_data_type {
                     None => Long { signed: false, endian: Native },
                     Some((',', 'b')) | Some((',', 'B')) => Byte { signed: true  },
@@ -566,6 +566,36 @@ impl<I> Parser for IndirectOffset<I>
                     rest,
                 )
             })
+    }
+}
+
+pub fn offset<I>() -> Offset<I>
+    where I: Stream<Item = char>
+{
+    Offset(PhantomData)
+}
+
+pub struct Offset<I>(PhantomData<fn(I) -> I>)
+    where I: Stream<Item = char>;
+
+impl<I> Parser for Offset<I>
+    where I: Stream<Item = char>
+{
+    type Input = I;
+    type Output = magic::Offset;
+
+    fn parse_stream(&mut self, input: I) -> ParseResult<Self::Output, Self::Input> {
+        if let Ok((direct, rest)) = direct_offset().parse_stream(input.clone()) {
+            Ok((magic::Offset::Direct(direct), rest))
+        } else {
+            optional(token('&')).and(indirect_offset()).parse_stream(input)
+                .map(|((opt_amp, indirect), rest)| {
+                    match opt_amp {
+                        Some(..) => (magic::Offset::RelativeIndirect(indirect), rest),
+                        None => (magic::Offset::AbsoluteIndirect(indirect), rest),
+                    }
+                })
+        }
     }
 }
 
@@ -747,6 +777,54 @@ mod tests {
                 bias: 4,
             }, "")),
             super::indirect_offset().parse("(4.l+4)")
+        );
+    }
+
+    #[test]
+    fn offset() {
+        use magic;
+        use magic::Offset::*;
+        use magic::DirectOffset::*;
+        use data_type::DataType::*;
+        use endian::Endian::*;
+
+        assert_eq!(Ok((Direct(Absolute(108)), "")), super::offset().parse("108"));
+        assert_eq!(Ok((Direct(Relative(108)), "")), super::offset().parse("&0x6C"));
+
+        assert_eq!(
+            Ok((AbsoluteIndirect(magic::IndirectOffset {
+                base: Absolute(108),
+                data_type: Short { signed: false, endian: Big },
+                bias: 0,
+            }), "")),
+            super::offset().parse("(108.S)")
+        );
+
+        assert_eq!(
+            Ok((AbsoluteIndirect(magic::IndirectOffset {
+                base: Relative(108),
+                data_type: Long { signed: true, endian: Little },
+                bias: -5,
+            }), "")),
+            super::offset().parse("(&108,l-5)")
+        );
+
+        assert_eq!(
+            Ok((RelativeIndirect(magic::IndirectOffset {
+                base: Absolute(108),
+                data_type: Byte { signed: false },
+                bias: 8,
+            }), "")),
+            super::offset().parse("&(0x6c.B+8)")
+        );
+
+        assert_eq!(
+            Ok((RelativeIndirect(magic::IndirectOffset {
+                base: Relative(108),
+                data_type: Long { signed: false, endian: Native },
+                bias: 0,
+            }), "")),
+            super::offset().parse("&(&108)")
         );
     }
 }
