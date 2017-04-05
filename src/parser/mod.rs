@@ -5,7 +5,7 @@ use error::{MagicError, MagicResult};
 use magic::*;
 use std::io::{BufRead, BufReader, Read};
 
-pub mod parsers;
+mod parsers;
 
 pub fn parse_set<R: Read>(filename: String, input: &mut R) -> MagicResult<MagicSet> {
     let mut entries = Vec::new();
