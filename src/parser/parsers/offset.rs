@@ -162,15 +162,6 @@ mod tests {
 
         assert_eq!(
             Ok((magic::IndirectOffset {
-                base: Relative(-108),
-                data_type: Byte { signed: true },
-                bias: 0,
-            }, "")),
-            super::indirect_offset().parse("(&0x94,b)")
-        );
-
-        assert_eq!(
-            Ok((magic::IndirectOffset {
                 base: Absolute(4),
                 data_type: Long { signed: false, endian: Little },
                 bias: 4,
