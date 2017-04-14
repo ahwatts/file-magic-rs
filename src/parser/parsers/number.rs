@@ -48,9 +48,9 @@ impl<'a, I> Parser for IntegerBytes<'a, I>
     }
 }
 
-
 /// Parses a possibly-negative integer in either decimal, octal (with
-/// a leading 0), or hexidecimal (with a leading 0x).
+/// a leading 0), or hexidecimal (with a leading 0x). Converts it to
+/// primitive type N.
 pub fn integer<N, I>() -> Integer<N, I>
     where N: ParseableInt,
           I: Stream<Item = char>
@@ -63,11 +63,36 @@ pub struct Integer<N, I>(PhantomData<fn(I) -> N>)
           I: Stream<Item = char>;
 
 impl<N, I> Parser for Integer<N, I>
-    where N: ParseableInt + ::std::fmt::Debug,
+    where N: ParseableInt,
           I: Stream<Item = char>
 {
     type Input = I;
     type Output = N;
+
+    fn parse_stream(&mut self, input: Self::Input) -> ParseResult<Self::Output, Self::Input> {
+        let (bival, rest) = raw_integer().parse_stream(input)?;
+        Ok((N::from_bigint(bival), rest))
+    }
+}
+
+
+/// Parses a possibly-negative integer in either decimal, octal (with
+/// a leading 0), or hexidecimal (with a leading 0x). Returns it as a
+/// BigInt.
+pub fn raw_integer<I>() -> RawInteger<I>
+    where I: Stream<Item = char>
+{
+    RawInteger(PhantomData)
+}
+
+pub struct RawInteger<I>(PhantomData<fn(I) -> BigInt>)
+    where I: Stream<Item = char>;
+
+impl<I> Parser for RawInteger<I>
+    where I: Stream<Item = char>
+{
+    type Input = I;
+    type Output = BigInt;
 
     fn parse_stream(&mut self, input: Self::Input) -> ParseResult<Self::Output, Self::Input> {
         let ((opt_neg, uval), rest) = (
@@ -84,7 +109,7 @@ impl<N, I> Parser for Integer<N, I>
             None => BigInt::from(uval),
         };
 
-        Ok((N::from_bigint(ival), rest))
+        Ok((ival, rest))
     }
 }
 
@@ -217,16 +242,16 @@ macro_rules! from_big_int_impl {
                 use num::bigint::Sign::*;
 
                 if let Some(sval) = bigint.$sconverter_mtd() {
-                    println!("(bigint) {:?}.{} = {:?} ({}?)",
-                             bigint, stringify!($sconverter_mtd),
-                             sval, stringify!($sty));
+                    // println!("(bigint) {:?}.{} = {:?} ({}?)",
+                    //          bigint, stringify!($sconverter_mtd),
+                    //          sval, stringify!($sty));
                     return sval
                 }
 
                 if let Some(uval) = bigint.$uconverter_mtd() {
                     let uptr: *const $uty = &uval;
                     let sval = unsafe { *(uptr as *const $sty) };
-                    println!("bigint = {:?} uval = {:?} sval = {:?}", bigint, uval, sval);
+                    // println!("bigint = {:?} uval = {:?} sval = {:?}", bigint, uval, sval);
                     return match bigint.sign() {
                         Minus => -sval,
                         _ => sval
