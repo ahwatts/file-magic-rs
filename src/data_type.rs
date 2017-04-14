@@ -1,7 +1,8 @@
 use byteorder::{NativeEndian, WriteBytesExt};
 use endian::Endian;
 use error::{MagicError, MagicResult};
-use num::{Num, Integer, ToPrimitive};
+use num::ToPrimitive;
+use std::fmt::Debug;
 use std::io::{self, Read, Write};
 use std::mem;
 
@@ -40,6 +41,18 @@ macro_rules! read_type_to_vec {
     }}
 }
 
+macro_rules! to_primitive {
+    ($number:ident, $converter_mtd:ident) => {
+        $number.$converter_mtd()
+            .ok_or(
+                io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("Cannot convert {:?} using {:?}",
+                            $number,
+                            stringify!($converter_mtd))))?
+    }
+}
+
 impl DataType {
     pub fn read<R: Read>(&self, file: &mut R) -> io::Result<Vec<u8>> {
         use self::DataType::*;
@@ -69,18 +82,18 @@ impl DataType {
         }
     }
 
-    pub fn write<N: Num + Integer + ToPrimitive, W: Write>(&self, number: N, file: &mut W) -> io::Result<()> {
+    pub fn write<N: ToPrimitive + Debug, W: Write>(&self, number: N, file: &mut W) -> io::Result<()> {
         use self::DataType::*;
 
         match self {
-            &Byte { signed: true  } => file.write_i8(number.to_i8().unwrap()),
-            &Byte { signed: false } => file.write_u8(number.to_u8().unwrap()),
-            &Short { signed: true,  .. } => file.write_i16::<NativeEndian>(number.to_i16().unwrap()),
-            &Short { signed: false, .. } => file.write_u16::<NativeEndian>(number.to_u16().unwrap()),
-            &Long  { signed: true,  .. } => file.write_i32::<NativeEndian>(number.to_i32().unwrap()),
-            &Long  { signed: false, .. } => file.write_u32::<NativeEndian>(number.to_u32().unwrap()),
-            &Quad  { signed: true,  .. } => file.write_i64::<NativeEndian>(number.to_i64().unwrap()),
-            &Quad  { signed: false, .. } => file.write_u64::<NativeEndian>(number.to_u64().unwrap()),
+            &Byte { signed: true  } => file.write_i8(to_primitive!(number, to_i8)),
+            &Byte { signed: false } => file.write_u8(to_primitive!(number, to_u8)),
+            &Short { signed: true,  .. } => file.write_i16::<NativeEndian>(to_primitive!(number, to_i16)),
+            &Short { signed: false, .. } => file.write_u16::<NativeEndian>(to_primitive!(number, to_u16)),
+            &Long  { signed: true,  .. } => file.write_i32::<NativeEndian>(to_primitive!(number, to_i32)),
+            &Long  { signed: false, .. } => file.write_u32::<NativeEndian>(to_primitive!(number, to_u32)),
+            &Quad  { signed: true,  .. } => file.write_i64::<NativeEndian>(to_primitive!(number, to_i64)),
+            &Quad  { signed: false, .. } => file.write_u64::<NativeEndian>(to_primitive!(number, to_u64)),
             _ => unimplemented!(),
         }
     }
