@@ -8,7 +8,6 @@ extern crate rustc_serialize;
 
 pub mod data_type;
 pub mod endian;
-pub mod from_bytes;
 pub mod error;
 pub mod magic;
 pub mod parser;
