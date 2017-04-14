@@ -140,7 +140,7 @@ mod tests {
         assert_eq!(Ok((Absolute(108), "")), super::direct_offset().parse("108"));
         assert_eq!(Ok((Relative(108), "")), super::direct_offset().parse("&0x6c"));
         assert_eq!(Ok((Relative(108), "")), super::direct_offset().parse("&108"));
-        assert_eq!(Ok((Relative(-108), "")), super::direct_offset().parse("&-0x6C"));
+        assert_eq!(Ok((Relative(-108), "")), super::direct_offset().parse("&-0x6c"));
         assert_eq!(Ok((Relative(-108), "")), super::direct_offset().parse("&-108"));
     }
 
@@ -166,7 +166,7 @@ mod tests {
                 data_type: Byte { signed: true },
                 bias: 0,
             }, "")),
-            super::indirect_offset().parse("(&-0x6c,b)")
+            super::indirect_offset().parse("(&0x94,b)")
         );
 
         assert_eq!(

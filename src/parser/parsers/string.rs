@@ -2,6 +2,7 @@ use combine::combinator::*;
 use combine::{ConsumedResult, ParseError, ParseResult, Parser, Stream};
 use std::marker::PhantomData;
 use magic;
+use num::ToPrimitive;
 use std::iter::FromIterator;
 use std::str::Chars;
 use super::*;
@@ -68,8 +69,8 @@ pub fn escape_sequence<I>() -> EscapeSequence<I>
 {
     EscapeSequence {
         named_char: one_of("\\nrt".chars()),
-        hex_escape: token('x').with(hex_integer::<u8, _>()),
-        oct_escape: oct_integer::<u8, _>(),
+        hex_escape: token('x').with(hex_integer()),
+        oct_escape: oct_integer(),
     }
 }
 
@@ -77,8 +78,8 @@ pub struct EscapeSequence<I>
     where I: Stream<Item = char>,
 {
     named_char: OneOf<Chars<'static>, I>,
-    hex_escape: With<Token<I>, HexInteger<u8, I>>,
-    oct_escape: OctInteger<u8, I>,
+    hex_escape: With<Token<I>, HexInteger<I>>,
+    oct_escape: OctInteger<I>,
 }
 
 impl<I> Parser for EscapeSequence<I>
@@ -97,8 +98,8 @@ impl<I> Parser for EscapeSequence<I>
                 _ => unreachable!("Invalid escape sequence: {:?}", s),
             }
         });
-        let hex_parser = self.hex_escape.by_ref().map(|n| From::from(n));
-        let oct_parser = self.oct_escape.by_ref().map(|n| From::from(n));
+        let hex_parser = self.hex_escape.by_ref().map(|n| From::from(n.to_u8().unwrap()));
+        let oct_parser = self.oct_escape.by_ref().map(|n| From::from(n.to_u8().unwrap()));
         token('\\').with(named_parser.or(hex_parser).or(oct_parser)).parse_stream(input)
     }
 }
