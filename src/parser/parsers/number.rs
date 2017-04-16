@@ -13,7 +13,7 @@ pub fn integer_bytes<'a, I>(data_type: &'a data_type::DataType) -> IntegerBytes<
     where I: Stream<Item = char>
 {
     IntegerBytes {
-        _data_type: data_type,
+        data_type: data_type,
         marker: PhantomData,
     }
 }
@@ -21,7 +21,7 @@ pub fn integer_bytes<'a, I>(data_type: &'a data_type::DataType) -> IntegerBytes<
 pub struct IntegerBytes<'a, I>
     where I: Stream<Item = char>
 {
-    _data_type: &'a data_type::DataType,
+    data_type: &'a data_type::DataType,
     marker: PhantomData<fn(I) -> I>,
 }
 
@@ -31,20 +31,19 @@ impl<'a, I> Parser for IntegerBytes<'a, I>
     type Input = I;
     type Output = Vec<u8>;
 
-    fn parse_stream(&mut self, _input: Self::Input) -> ParseResult<Self::Output, Self::Input> {
-        unimplemented!()
-        // use data_type::DataType::*;
-        // match self.data_type {
-        //     &Byte  { signed: false } => integer::<u8, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
-        //     &Byte  { signed: true  } => integer::<i8, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
-        //     &Short { endian: _, signed: false } => integer::<u16, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
-        //     &Short { endian: _, signed: true  } => integer::<i16, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
-        //     &Long  { endian: _, signed: false } => integer::<u32, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
-        //     &Long  { endian: _, signed: true  } => integer::<i32, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
-        //     &Quad  { endian: _, signed: false } => integer::<u64, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
-        //     &Quad  { endian: _, signed: true  } => integer::<i64, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
-        //     _ => unreachable!("Cannot parse integer value for data type {:?}", self.data_type),
-        // }
+    fn parse_stream(&mut self, input: Self::Input) -> ParseResult<Self::Output, Self::Input> {
+        use data_type::DataType::*;
+        match self.data_type {
+            &Byte  { signed: false } => integer::<u8, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            &Byte  { signed: true  } => integer::<i8, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            &Short { endian: _, signed: false } => integer::<u16, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            &Short { endian: _, signed: true  } => integer::<i16, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            &Long  { endian: _, signed: false } => integer::<u32, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            &Long  { endian: _, signed: true  } => integer::<i32, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            &Quad  { endian: _, signed: false } => integer::<u64, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            &Quad  { endian: _, signed: true  } => integer::<i64, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            _ => unreachable!("Cannot parse integer value for data type {:?}", self.data_type),
+        }
     }
 }
 
