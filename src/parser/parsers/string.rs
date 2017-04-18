@@ -68,7 +68,7 @@ pub fn escape_sequence<I>() -> EscapeSequence<I>
     where I: Stream<Item = char>
 {
     EscapeSequence {
-        named_char: one_of("\\nrt".chars()),
+        named_char: one_of("\\nrtb".chars()),
         hex_escape: token('x').with(hex_integer()),
         oct_escape: oct_integer(),
     }
@@ -94,6 +94,7 @@ impl<I> Parser for EscapeSequence<I>
                 'n' => '\n',
                 'r' => '\r',
                 't' => '\t',
+                'b' => '\u{08}', // backspace
                 '\\' => '\\',
                 _ => unreachable!("Invalid escape sequence: {:?}", s),
             }
