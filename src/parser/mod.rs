@@ -3,7 +3,6 @@ use combine::char::*;
 use data_type;
 use error::{MagicError, MagicResult};
 use magic::*;
-use num::BigInt;
 use std::io::{BufRead, BufReader, Read};
 
 mod parsers;
@@ -69,7 +68,7 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
     let (level, rest) = try!(many::<String, _>(try(token('>'))).parse(line).map(|(lv_str, rst)| (lv_str.len(), rst)));
     let (offset, rest) = try!(offset(rest));
     let (_, rest) = try!(spaces().parse(rest));
-    let ((data_type, _opt_and_val), rest) = try!(data_type(rest));
+    let ((data_type, _opt_mask), rest) = try!(data_type(rest));
     let (_, rest) = try!(spaces().parse(rest));
 
     match data_type {
@@ -131,10 +130,12 @@ fn offset<I>(input: I) -> CombParseResult<I, Offset>
     parsers::offset().parse(input)
 }
 
-fn data_type<I>(input: I) -> CombParseResult<I, (data_type::DataType, Option<BigInt>)>
+fn data_type<I>(input: I) -> CombParseResult<I, (data_type::DataType, Option<Vec<u8>>)>
     where I: Stream<Item = char>
 {
-    (parsers::data_type(), optional(token('&').with(parsers::raw_integer()))).parse(input)
+    let (dt, rest) = parsers::data_type().parse(input)?;
+    let (opt_mask, rest) = optional(token('&').with(parsers::integer_bytes(&dt))).parse(rest)?;
+    Ok(((dt, opt_mask), rest))
 }
 
 fn test_type<I>(data_type: &data_type::DataType, input: I) -> CombParseResult<I, TestType>
