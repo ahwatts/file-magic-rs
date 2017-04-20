@@ -68,7 +68,7 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
     let (level, rest) = try!(many::<String, _>(try(token('>'))).parse(line).map(|(lv_str, rst)| (lv_str.len(), rst)));
     let (offset, rest) = try!(offset(rest));
     let (_, rest) = try!(spaces().parse(rest));
-    let ((data_type, _opt_mask), rest) = try!(data_type(rest));
+    let ((data_type, opt_mask), rest) = try!(data_type(rest));
     let (_, rest) = try!(spaces().parse(rest));
 
     match data_type {
@@ -108,6 +108,11 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
             let (test_type, rest) = try!(test_type(&data_type, rest));
             let (_, rest) = try!(spaces().parse(rest));
             let ((message, _), rest) = try!((many::<String, _>(try(any())), eof()).parse(rest));
+            let mut test = Test::new(data_type, test_type);
+
+            if let &mut TestType::Number(ref mut num_test) = test.test_type_mut() {
+                num_test.mask = opt_mask;
+            }
 
             Ok((
                 MagicEntry {
@@ -115,7 +120,7 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
                     line_num: 0,
                     level: level as u32,
                     offset: offset,
-                    test: Test::new(data_type, test_type),
+                    test: test,
                     message: message,
                 },
                 rest
@@ -151,7 +156,7 @@ fn test_type<I>(data_type: &data_type::DataType, input: I) -> CombParseResult<I,
         }).parse(input)
     } else {
         (optional(parsers::numeric_operator()), parsers::integer_bytes(data_type)).map(|(op, num)| {
-            TestType::Number(NumericTest::new_from_bytes(op.unwrap_or(NumOp::Equal), num))
+            TestType::Number(NumericTest::new_from_bytes(op.unwrap_or(NumOp::Equal), num, None))
         }).parse(input)
     }
 }
@@ -199,22 +204,22 @@ mod tests {
 
         let dt = DataType::Long { endian: Endian::Native, signed: true };
         assert_eq!(
-            Ok((TestType::Number(NumericTest::new(NumOp::Equal, 305i32)), "")),
+            Ok((TestType::Number(NumericTest::new(NumOp::Equal, 305i32, None)), "")),
             super::test_type(&dt, "305"));
 
         let dt = DataType::Quad { endian: Endian::Little, signed: true };
         assert_eq!(
-            Ok((TestType::Number(NumericTest::new(NumOp::Equal, -305i64)), "")),
+            Ok((TestType::Number(NumericTest::new(NumOp::Equal, -305i64, None)), "")),
             super::test_type(&dt, "=-305"));
 
         let dt = DataType::Short { endian: Endian::Big, signed: false };
         assert_eq!(
-            Ok((TestType::Number(NumericTest::new(NumOp::GreaterThan, 48_879u16)), "")),
+            Ok((TestType::Number(NumericTest::new(NumOp::GreaterThan, 48_879u16, None)), "")),
             super::test_type(&dt, ">0xBeef"));
 
         let dt = DataType::Long { endian: Endian::Native, signed: false };
         assert_eq!(
-            Ok((TestType::Number(NumericTest::new(NumOp::Equal, 263u32)), "")),
+            Ok((TestType::Number(NumericTest::new(NumOp::Equal, 263u32, None)), "")),
             super::test_type(&dt, "0407"));
     }
 
@@ -235,7 +240,7 @@ mod tests {
             offset: Offset::direct(DirectOffset::absolute(0)),
             test: Test::new(
                 DataType::Long { endian: Endian::Little, signed: true },
-                TestType::Number(NumericTest::new(NumOp::Equal, 263i32))),
+                TestType::Number(NumericTest::new(NumOp::Equal, 263i32, None))),
             message: "a.out little-endian 32-bit executable".to_string(),
         };
         assert_eq!(Ok((me, "")), super::entry(

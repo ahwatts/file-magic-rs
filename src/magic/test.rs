@@ -27,6 +27,10 @@ impl Test {
         &self.test_type
     }
 
+    pub fn test_type_mut(&mut self) -> &mut TestType {
+        &mut self.test_type
+    }
+
     pub fn matches<R: Read>(&self, file: &mut R) -> MagicResult<bool> {
         match self.test_type {
             TestType::AlwaysTrue => Ok(true),
@@ -49,20 +53,23 @@ pub enum TestType {
 pub struct NumericTest {
     logic_op: NumOp,
     test_value: Vec<u8>,
+    pub mask: Option<Vec<u8>>,
 }
 
 impl NumericTest {
-    pub fn new<N: Num + Integer>(logic_op: NumOp, test_value: N) -> NumericTest {
+    pub fn new<N: Num + Integer>(logic_op: NumOp, test_value: N, opt_mask: Option<Vec<u8>>) -> NumericTest {
         NumericTest {
             logic_op: logic_op,
             test_value: data_type::sized_to_byte_vec(test_value),
+            mask: opt_mask,
         }
     }
 
-    pub fn new_from_bytes<I: Into<Vec<u8>> + Debug>(logic_op: NumOp, test_value_bytes: I) -> NumericTest {
+    pub fn new_from_bytes<I: Into<Vec<u8>> + Debug>(logic_op: NumOp, test_value_bytes: I, opt_mask_bytes: Option<I>) -> NumericTest {
         let rv = NumericTest {
             logic_op: logic_op,
             test_value: test_value_bytes.into(),
+            mask: opt_mask_bytes.map(|mb| mb.into()),
         };
         rv
     }
@@ -157,6 +164,7 @@ mod tests {
         let test = NumericTest {
             logic_op: NumOp::Equal,
             test_value: vec![ 3u8, 0, 0, 0 ],
+            mask: None,
         };
 
         assert!(test.matches_type::<u32>(&vec![ 3u8, 0, 0, 0 ]).unwrap());
