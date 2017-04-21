@@ -105,14 +105,10 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
             ))
         },
         _ => {
-            let (test_type, rest) = try!(test_type(&data_type, rest));
-            let (_, rest) = try!(spaces().parse(rest));
-            let ((message, _), rest) = try!((many::<String, _>(try(any())), eof()).parse(rest));
-            let mut test = Test::new(data_type, test_type);
-
-            if let &mut TestType::Number(ref mut num_test) = test.test_type_mut() {
-                num_test.mask = opt_mask;
-            }
+            let (test_type, rest) = test_type(&data_type, opt_mask, rest)?;
+            let (_, rest) = spaces().parse(rest)?;
+            let ((message, _), rest) = (many::<String, _>(try(any())), eof()).parse(rest)?;
+            let test = Test::new(data_type, test_type);
 
             Ok((
                 MagicEntry {
@@ -143,7 +139,7 @@ fn data_type<I>(input: I) -> CombParseResult<I, (data_type::DataType, Option<Vec
     Ok(((dt, opt_mask), rest))
 }
 
-fn test_type<I>(data_type: &data_type::DataType, input: I) -> CombParseResult<I, TestType>
+fn test_type<I>(data_type: &data_type::DataType, opt_mask: Option<Vec<u8>>, input: I) -> CombParseResult<I, TestType>
     where I: Stream<Item = char>
 {
     if let ok_rslt @ Ok(..) = try(token('x').with(look_ahead(space())).map(|_| TestType::AlwaysTrue)).parse(input.clone()) {
@@ -151,13 +147,11 @@ fn test_type<I>(data_type: &data_type::DataType, input: I) -> CombParseResult<I,
     }
 
     if data_type == &data_type::DataType::String {
-        (optional(parsers::string_operator()), parsers::escaped_string::<String, _>()).map(|(op, string)| {
-            TestType::String(StringTest::new(op.unwrap_or(StringOp::Equal), string))
-        }).parse(input)
+        let ((op, string), rest) = (optional(parsers::string_operator()), parsers::escaped_string::<String, _>()).parse(input)?;
+        Ok((TestType::String(StringTest::new(op.unwrap_or(StringOp::Equal), string)), rest))
     } else {
-        (optional(parsers::numeric_operator()), parsers::integer_bytes(data_type)).map(|(op, num)| {
-            TestType::Number(NumericTest::new_from_bytes(op.unwrap_or(NumOp::Equal), num, None))
-        }).parse(input)
+        let ((op, num), rest) = (optional(parsers::numeric_operator()), parsers::integer_bytes(data_type)).parse(input)?;
+        Ok((TestType::Number(NumericTest::new_from_bytes(op.unwrap_or(NumOp::Equal), num, opt_mask)), rest))
     }
 }
 
@@ -192,35 +186,51 @@ mod tests {
     }
 
     #[test]
+    fn data_type_with_mask() {
+        assert_eq!(
+            Ok(((DataType::Short { signed: true, endian: Endian::Little }, Some(vec![ 0xff, 0x3f ])), "")),
+            super::data_type("leshort&0x3fff")
+        );
+    }
+
+    #[test]
     fn always_true_test_type() {
         let dt = DataType::Byte { signed: false };
-        assert_eq!(Ok((TestType::AlwaysTrue, " ")), super::test_type(&dt, "x "));
+        assert_eq!(Ok((TestType::AlwaysTrue, " ")), super::test_type(&dt, None, "x "));
     }
 
     #[test]
     fn numeric_test_values() {
         let dt = DataType::Byte { signed: false };
-        assert_eq!(Ok((TestType::AlwaysTrue, "\t")), super::test_type(&dt, "x\t"));
+        assert_eq!(Ok((TestType::AlwaysTrue, "\t")), super::test_type(&dt, None, "x\t"));
 
         let dt = DataType::Long { endian: Endian::Native, signed: true };
         assert_eq!(
             Ok((TestType::Number(NumericTest::new(NumOp::Equal, 305i32, None)), "")),
-            super::test_type(&dt, "305"));
+            super::test_type(&dt, None, "305"));
 
         let dt = DataType::Quad { endian: Endian::Little, signed: true };
         assert_eq!(
             Ok((TestType::Number(NumericTest::new(NumOp::Equal, -305i64, None)), "")),
-            super::test_type(&dt, "=-305"));
+            super::test_type(&dt, None, "=-305"));
 
         let dt = DataType::Short { endian: Endian::Big, signed: false };
         assert_eq!(
             Ok((TestType::Number(NumericTest::new(NumOp::GreaterThan, 48_879u16, None)), "")),
-            super::test_type(&dt, ">0xBeef"));
+            super::test_type(&dt, None, ">0xBeef"));
 
         let dt = DataType::Long { endian: Endian::Native, signed: false };
         assert_eq!(
             Ok((TestType::Number(NumericTest::new(NumOp::Equal, 263u32, None)), "")),
-            super::test_type(&dt, "0407"));
+            super::test_type(&dt, None, "0407"));
+    }
+
+    #[test]
+    fn numeric_test_value_with_mask() {
+        let dt = DataType::Long { endian: Endian::Native, signed: true };
+        assert_eq!(
+            Ok((TestType::Number(NumericTest::new(NumOp::Equal, 305i32, Some(vec![ 0xff, 0xff, 0xff, 0xff ]))), "")),
+            super::test_type(&dt, Some(vec![ 0xff, 0xff, 0xff, 0xff ]), "305"));
     }
 
     #[test]
@@ -228,7 +238,7 @@ mod tests {
         let dt = DataType::String;
         assert_eq!(
             Ok((TestType::String(StringTest::new(StringOp::Equal, "fmt ")), "")),
-            super::test_type(&dt, "fmt\\x20"));
+            super::test_type(&dt, None, "fmt\\x20"));
     }
 
     #[test]
