@@ -12,6 +12,7 @@ pub struct MagicEntry {
     pub offset: Offset,
     pub test: Test,
     pub message: String,
+    pub mime_type: Option<String>,
 }
 
 impl MagicEntry {

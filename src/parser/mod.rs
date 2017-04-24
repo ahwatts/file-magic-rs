@@ -84,6 +84,7 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
                     offset: offset,
                     test: Test::new(name_dt, TestType::AlwaysTrue),
                     message: "".to_string(),
+                    mime_type: None,
                 },
                 rest
             ))
@@ -100,6 +101,7 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
                     offset: offset,
                     test: Test::new(use_dt, TestType::UseList(name)),
                     message: "".to_string(),
+                    mime_type: None,
                 },
                 rest
             ))
@@ -118,6 +120,7 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
                     offset: offset,
                     test: test,
                     message: message,
+                    mime_type: None,
                 },
                 rest
             ))
@@ -252,6 +255,7 @@ mod tests {
                 DataType::Long { endian: Endian::Little, signed: true },
                 TestType::Number(NumericTest::new(NumOp::Equal, 263i32, None))),
             message: "a.out little-endian 32-bit executable".to_string(),
+            mime_type: None,
         };
         assert_eq!(Ok((me, "")), super::entry(
             "0	lelong		0407		a.out little-endian 32-bit executable"
@@ -269,6 +273,7 @@ mod tests {
                 DataType::Name("riff-walk".to_string()),
                 TestType::AlwaysTrue),
             message: "".to_string(),
+            mime_type: None,
         };
         assert_eq!(Ok((me, "")), super::entry(
             "0	name	riff-walk"
