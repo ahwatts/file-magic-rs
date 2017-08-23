@@ -46,7 +46,6 @@ fn translate_data_type_value(val: String) -> io::Result<data_type::DataType> {
         "long"   => Ok(Long { endian: Native, signed: true }),
         "belong" => Ok(Long { endian: Big,    signed: true }),
         "lelong" => Ok(Long { endian: Little, signed: true }),
-        "melong" => Ok(Long { endian: Pdp11,  signed: true }),
 
         "quad"   => Ok(Quad { endian: Native, signed: true }),
         "bequad" => Ok(Quad { endian: Big,    signed: true }),
@@ -61,7 +60,6 @@ fn translate_data_type_value(val: String) -> io::Result<data_type::DataType> {
         "ulong"   => Ok(Long { endian: Native, signed: false }),
         "ubelong" => Ok(Long { endian: Big,    signed: false }),
         "ulelong" => Ok(Long { endian: Little, signed: false }),
-        "umelong" => Ok(Long { endian: Pdp11,  signed: false }),
 
         "uquad"   => Ok(Quad { endian: Native, signed: false }),
         "ubequad" => Ok(Quad { endian: Big,    signed: false }),
@@ -102,7 +100,6 @@ mod tests {
         assert_eq!(Ok((Long { endian: Native, signed: true }, "")), super::data_type().parse("long"));
         assert_eq!(Ok((Long { endian: Big,    signed: true }, "")), super::data_type().parse("belong"));
         assert_eq!(Ok((Long { endian: Little, signed: true }, "")), super::data_type().parse("lelong"));
-        assert_eq!(Ok((Long { endian: Pdp11,  signed: true }, "")), super::data_type().parse("melong"));
 
         assert_eq!(Ok((Quad { endian: Native, signed: true }, "")), super::data_type().parse("quad"));
         assert_eq!(Ok((Quad { endian: Big,    signed: true }, "")), super::data_type().parse("bequad"));
@@ -117,7 +114,6 @@ mod tests {
         assert_eq!(Ok((Long { endian: Native, signed: false }, "")), super::data_type().parse("ulong"));
         assert_eq!(Ok((Long { endian: Big,    signed: false }, "")), super::data_type().parse("ubelong"));
         assert_eq!(Ok((Long { endian: Little, signed: false }, "")), super::data_type().parse("ulelong"));
-        assert_eq!(Ok((Long { endian: Pdp11,  signed: false }, "")), super::data_type().parse("umelong"));
 
         assert_eq!(Ok((Quad { endian: Native, signed: false }, "")), super::data_type().parse("uquad"));
         assert_eq!(Ok((Quad { endian: Big,    signed: false }, "")), super::data_type().parse("ubequad"));

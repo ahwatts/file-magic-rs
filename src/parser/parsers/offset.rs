@@ -71,8 +71,6 @@ impl<I> Parser for IndirectOffset<I>
                     Some((',', 'L')) => Long { signed: true,  endian: Big    },
                     Some(('.', 'l')) => Long { signed: false, endian: Little },
                     Some(('.', 'L')) => Long { signed: false, endian: Big    },
-                    Some((',', 'm')) => Long { signed: true,  endian: Pdp11 },
-                    Some(('.', 'm')) => Long { signed: false, endian: Pdp11 },
 
                     // Should probably be a parse error...
                     Some((s, t)) => unreachable!("Invalid data type for indirect offset: x{}{}", s, t),

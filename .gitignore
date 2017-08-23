@@ -1,3 +1,5 @@
 /target
 /Cargo.lock
 /magic.mgc.mpk
+.DS_Store
+/.vscode
