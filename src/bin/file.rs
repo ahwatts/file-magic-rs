@@ -9,7 +9,7 @@ use std::env;
 use std::fs::File;
 
 fn main() {
-    let filename = env::args().skip(1).next().expect("No filename argument.");
+    let filename = env::args().nth(1).expect("No filename argument.");
     let mut file = File::open(filename).unwrap();
 
     let mut rules_file = File::open("magic.mgc.mpk").unwrap();

@@ -15,7 +15,7 @@ impl Test {
     pub fn new(desc: data_type::DataType, test_type: TestType) -> Test {
         Test {
             data_type: desc,
-            test_type: test_type,
+            test_type,
         }
     }
 
@@ -59,19 +59,18 @@ pub struct NumericTest {
 impl NumericTest {
     pub fn new<N: Num + Integer>(logic_op: NumOp, test_value: N, opt_mask: Option<Vec<u8>>) -> NumericTest {
         NumericTest {
-            logic_op: logic_op,
+            logic_op,
             test_value: data_type::sized_to_byte_vec(test_value),
             mask: opt_mask,
         }
     }
 
     pub fn new_from_bytes<I: Into<Vec<u8>> + Debug>(logic_op: NumOp, test_value_bytes: I, opt_mask_bytes: Option<I>) -> NumericTest {
-        let rv = NumericTest {
-            logic_op: logic_op,
+        NumericTest {
+            logic_op,
             test_value: test_value_bytes.into(),
             mask: opt_mask_bytes.map(|mb| mb.into()),
-        };
-        rv
+        }
     }
 
     pub fn matches_file<R: Read>(&self, data_type: &data_type::DataType, file: &mut R) -> MagicResult<bool> {
@@ -80,14 +79,14 @@ impl NumericTest {
         let actual_data = data_type.read(file)?;
 
         match data_type {
-            &Byte { signed: true  } => self.matches_type::<i8>(&actual_data),
-            &Byte { signed: false } => self.matches_type::<u8>(&actual_data),
-            &Short { endian: _, signed: true  } => self.matches_type::<i16>(&actual_data),
-            &Short { endian: _, signed: false } => self.matches_type::<u16>(&actual_data),
-            &Long  { endian: _, signed: true  } => self.matches_type::<i32>(&actual_data),
-            &Long  { endian: _, signed: false } => self.matches_type::<u32>(&actual_data),
-            &Quad  { endian: _, signed: true  } => self.matches_type::<i64>(&actual_data),
-            &Quad  { endian: _, signed: false } => self.matches_type::<u64>(&actual_data),
+            Byte { signed: true  } => self.matches_type::<i8>(&actual_data),
+            Byte { signed: false } => self.matches_type::<u8>(&actual_data),
+            Short { endian: _, signed: true  } => self.matches_type::<i16>(&actual_data),
+            Short { endian: _, signed: false } => self.matches_type::<u16>(&actual_data),
+            Long  { endian: _, signed: true  } => self.matches_type::<i32>(&actual_data),
+            Long  { endian: _, signed: false } => self.matches_type::<u32>(&actual_data),
+            Quad  { endian: _, signed: true  } => self.matches_type::<i64>(&actual_data),
+            Quad  { endian: _, signed: false } => self.matches_type::<u64>(&actual_data),
             _ => unreachable!("Cannot match data type {:?}", data_type),
         }
     }
@@ -125,10 +124,10 @@ impl NumOp {
         println!("NumOp matches: {:?} {:?} {:?}", lhs, self, rhs);
 
         match self {
-            &Equal       => lhs == rhs,
-            &LessThan    => lhs  < rhs,
-            &GreaterThan => lhs  > rhs,
-            &NotEqual    => lhs != rhs,
+            Equal       => lhs == rhs,
+            LessThan    => lhs  < rhs,
+            GreaterThan => lhs  > rhs,
+            NotEqual    => lhs != rhs,
         }
     }
 }

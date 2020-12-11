@@ -17,7 +17,7 @@ pub struct MagicEntry {
 
 impl MagicEntry {
     pub fn matches<F: Read + Seek>(&self, file: &mut F) -> MagicResult<MatchResult> {
-        try!(self.offset.seek_to(file));
+        self.offset.seek_to(file)?;
         match self.test.matches(file) {
             Ok(true) => Ok(MatchResult::Matches(self.message.clone())),
             Ok(false) => Ok(MatchResult::NoMatch),

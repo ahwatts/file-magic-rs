@@ -58,25 +58,25 @@ impl DataType {
         use self::DataType::*;
 
         match self {
-            &Byte { signed: true } => {
+            Byte { signed: true } => {
                 let value = self.endian().read_i8(file)?;
                 let mut vec = Vec::new();
                 vec.write_i8(value)?;
                 Ok(vec)
             },
-            &Byte { signed: false } => {
+            Byte { signed: false } => {
                 let value = self.endian().read_u8(file)?;
                 let mut vec = Vec::new();
                 vec.write_u8(value)?;
                 Ok(vec)
             }
 
-            &Short { signed: true,  .. } => read_type_to_vec!(self, file, read_i16, write_i16),
-            &Short { signed: false, .. } => read_type_to_vec!(self, file, read_u16, write_u16),
-            &Long  { signed: true,  .. } => read_type_to_vec!(self, file, read_i32, write_i32),
-            &Long  { signed: false, .. } => read_type_to_vec!(self, file, read_u32, write_u32),
-            &Quad  { signed: true,  .. } => read_type_to_vec!(self, file, read_i64, write_i64),
-            &Quad  { signed: false, .. } => read_type_to_vec!(self, file, read_u64, write_u64),
+            Short { signed: true,  .. } => read_type_to_vec!(self, file, read_i16, write_i16),
+            Short { signed: false, .. } => read_type_to_vec!(self, file, read_u16, write_u16),
+            Long  { signed: true,  .. } => read_type_to_vec!(self, file, read_i32, write_i32),
+            Long  { signed: false, .. } => read_type_to_vec!(self, file, read_u32, write_u32),
+            Quad  { signed: true,  .. } => read_type_to_vec!(self, file, read_i64, write_i64),
+            Quad  { signed: false, .. } => read_type_to_vec!(self, file, read_u64, write_u64),
 
             _ => unimplemented!(),
         }
@@ -86,14 +86,14 @@ impl DataType {
         use self::DataType::*;
 
         match self {
-            &Byte { signed: true  } => file.write_i8(to_primitive!(number, to_i8)),
-            &Byte { signed: false } => file.write_u8(to_primitive!(number, to_u8)),
-            &Short { signed: true,  .. } => file.write_i16::<NativeEndian>(to_primitive!(number, to_i16)),
-            &Short { signed: false, .. } => file.write_u16::<NativeEndian>(to_primitive!(number, to_u16)),
-            &Long  { signed: true,  .. } => file.write_i32::<NativeEndian>(to_primitive!(number, to_i32)),
-            &Long  { signed: false, .. } => file.write_u32::<NativeEndian>(to_primitive!(number, to_u32)),
-            &Quad  { signed: true,  .. } => file.write_i64::<NativeEndian>(to_primitive!(number, to_i64)),
-            &Quad  { signed: false, .. } => file.write_u64::<NativeEndian>(to_primitive!(number, to_u64)),
+            Byte { signed: true  } => file.write_i8(to_primitive!(number, to_i8)),
+            Byte { signed: false } => file.write_u8(to_primitive!(number, to_u8)),
+            Short { signed: true,  .. } => file.write_i16::<NativeEndian>(to_primitive!(number, to_i16)),
+            Short { signed: false, .. } => file.write_u16::<NativeEndian>(to_primitive!(number, to_u16)),
+            Long  { signed: true,  .. } => file.write_i32::<NativeEndian>(to_primitive!(number, to_i32)),
+            Long  { signed: false, .. } => file.write_u32::<NativeEndian>(to_primitive!(number, to_u32)),
+            Quad  { signed: true,  .. } => file.write_i64::<NativeEndian>(to_primitive!(number, to_i64)),
+            Quad  { signed: false, .. } => file.write_u64::<NativeEndian>(to_primitive!(number, to_u64)),
             _ => unimplemented!(),
         }
     }
@@ -103,12 +103,12 @@ impl DataType {
         use endian::Endian::*;
 
         match self {
-            &Byte  { .. } => Native,
-            &Short { endian: e, signed: _ } => e,
-            &Long  { endian: e, signed: _ } => e,
-            &Quad  { endian: e, signed: _ } => e,
-            &Float(e)  => e,
-            &Double(e) => e,
+            Byte  { .. } => Native,
+            Short { endian: e, signed: _ } => *e,
+            Long  { endian: e, signed: _ } => *e,
+            Quad  { endian: e, signed: _ } => *e,
+            Float(e)  => *e,
+            Double(e) => *e,
             _ => unimplemented!(),
         }
     }

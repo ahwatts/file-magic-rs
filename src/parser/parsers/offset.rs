@@ -78,7 +78,7 @@ impl<I> Parser for IndirectOffset<I>
 
                 let bias = match opt_bias {
                     None => 0,
-                    Some(('-', n)) => -1 * n,
+                    Some(('-', n)) => -n,
                     Some(('+', n)) => n,
 
                     // Should probably be a parse error...
@@ -88,8 +88,8 @@ impl<I> Parser for IndirectOffset<I>
                 (
                     magic::IndirectOffset {
                         base: direct_offset,
-                        data_type: data_type,
-                        bias: bias,
+                        data_type,
+                        bias,
                     },
                     rest,
                 )

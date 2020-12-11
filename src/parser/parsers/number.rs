@@ -9,11 +9,11 @@ use std::marker::PhantomData;
 pub trait ParseableInt: Num + FromBigInt + Clone + Debug {}
 impl<N> ParseableInt for N where N: Num + FromBigInt + Clone + Debug {}
 
-pub fn integer_bytes<'a, I>(data_type: &'a data_type::DataType) -> IntegerBytes<'a, I>
+pub fn integer_bytes<I>(data_type: &data_type::DataType) -> IntegerBytes<I>
     where I: Stream<Item = char>
 {
     IntegerBytes {
-        data_type: data_type,
+        data_type,
         marker: PhantomData,
     }
 }
@@ -34,14 +34,14 @@ impl<'a, I> Parser for IntegerBytes<'a, I>
     fn parse_stream(&mut self, input: Self::Input) -> ParseResult<Self::Output, Self::Input> {
         use data_type::DataType::*;
         match self.data_type {
-            &Byte  { signed: false } => integer::<u8, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
-            &Byte  { signed: true  } => integer::<i8, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
-            &Short { endian: _, signed: false } => integer::<u16, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
-            &Short { endian: _, signed: true  } => integer::<i16, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
-            &Long  { endian: _, signed: false } => integer::<u32, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
-            &Long  { endian: _, signed: true  } => integer::<i32, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
-            &Quad  { endian: _, signed: false } => integer::<u64, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
-            &Quad  { endian: _, signed: true  } => integer::<i64, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            Byte  { signed: false } => integer::<u8, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            Byte  { signed: true  } => integer::<i8, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            Short { endian: _, signed: false } => integer::<u16, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            Short { endian: _, signed: true  } => integer::<i16, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            Long  { endian: _, signed: false } => integer::<u32, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            Long  { endian: _, signed: true  } => integer::<i32, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            Quad  { endian: _, signed: false } => integer::<u64, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
+            Quad  { endian: _, signed: true  } => integer::<i64, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
             _ => unreachable!("Cannot parse integer value for data type {:?}", self.data_type),
         }
     }

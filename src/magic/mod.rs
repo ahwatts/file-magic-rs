@@ -23,7 +23,7 @@ pub struct MagicSet {
 impl MagicSet {
     pub fn new(filename: String) -> MagicSet {
         MagicSet {
-            filename: filename,
+            filename,
             lists: Vec::new(),
             named: HashMap::new(),
         }
@@ -36,7 +36,7 @@ impl MagicSet {
             if entry.level > 0 {
                 return Err(MagicError::Parse(format!("Root magic entry does not have a level of 0: {:?}", entry)));
             } else {
-                let opt_name = if let &DataType::Name(ref name) = entry.test.data_type() {
+                let opt_name = if let DataType::Name(name) = entry.test.data_type() {
                     Some(name.clone())
                 } else {
                     None
@@ -48,7 +48,7 @@ impl MagicSet {
                     children: Vec::new(),
                 };
 
-                try!(list.add_entries(&mut entry_iter));
+                list.add_entries(&mut entry_iter)?;
 
                 let list_owner = Rc::new(list);
                 self.lists.push(list_owner.clone());
@@ -99,7 +99,7 @@ impl MagicList {
                             root: entries.next().unwrap(),
                             children: Vec::new(),
                         };
-                        try!(list.add_entries(&mut entries));
+                        list.add_entries(&mut entries)?;
                         self.children.push(list);
                     } else {
                         return Err(MagicError::Parse(format!(
@@ -118,13 +118,13 @@ impl MagicList {
     pub fn matches<F: Read + Seek>(&self, file: &mut F) -> MagicResult<MatchResult> {
         use self::MatchResult::*;
 
-        let root_match = try!(self.root.matches(file));
+        let root_match = self.root.matches(file)?;
         match root_match {
             Matches(root_message) => {
                 let mut message = Vec::new();
                 message.push(root_message);
                 for entry in self.children.iter() {
-                    if let Matches(child_message) = try!(entry.matches(file)) {
+                    if let Matches(child_message) = entry.matches(file)? {
                         message.push(child_message);
                     }
                 }

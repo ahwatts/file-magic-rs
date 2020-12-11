@@ -14,6 +14,7 @@ pub fn data_type<I: Stream<Item = char>>() -> DataType<I> {
 }
 
 pub struct DataType<I: Stream<Item = char>> {
+    #[allow(clippy::type_complexity)]
     parser: AndThen<Many1<String, AlphaNum<I>>, fn(String) -> io::Result<data_type::DataType>>,
     marker: PhantomData<fn(I) -> I>
 }

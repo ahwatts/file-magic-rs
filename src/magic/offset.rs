@@ -37,11 +37,11 @@ impl Offset {
 
     pub fn seek_to<F: Read + Seek>(&self, file: &mut F) -> io::Result<u64> {
         let direct = match self {
-            &Offset::Direct(off) => off,
-            &Offset::AbsoluteIndirect(ref indirect) => {
+            Offset::Direct(off) => *off,
+            Offset::AbsoluteIndirect(indirect) => {
                 DirectOffset::Absolute(indirect.read_absolute_offset(file)?)
             },
-            &Offset::RelativeIndirect(ref indirect) => {
+            Offset::RelativeIndirect(indirect) => {
                 DirectOffset::Relative(indirect.read_relative_offset(file)?)
             },
         };
@@ -66,8 +66,8 @@ impl DirectOffset {
 
     pub fn seek_to<F: Seek>(&self, file: &mut F) -> io::Result<u64> {
         match self {
-            &DirectOffset::Absolute(off) => file.seek(SeekFrom::Start(off)),
-            &DirectOffset::Relative(off) => file.seek(SeekFrom::Current(off)),
+            DirectOffset::Absolute(off) => file.seek(SeekFrom::Start(*off)),
+            DirectOffset::Relative(off) => file.seek(SeekFrom::Current(*off)),
         }
     }
 }

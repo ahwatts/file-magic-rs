@@ -10,7 +10,7 @@ use rustc_serialize::Encodable;
 use std::path::PathBuf;
 
 fn main() {
-    let file_path = PathBuf::from(env::args().skip(1).next().expect("No filename argument."));
+    let file_path = PathBuf::from(env::args().nth(1).expect("No filename argument."));
     let mut file = File::open(&file_path).unwrap();
     let file_name = file_path.file_name()
         .and_then(|s| s.to_str())

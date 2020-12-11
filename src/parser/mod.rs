@@ -13,19 +13,19 @@ pub fn parse_set<R: Read>(filename: String, input: &mut R) -> MagicResult<MagicS
 
     for (line_num_minus_one, line_rslt) in buf_input.lines().enumerate() {
         let line_num = line_num_minus_one + 1;
-        let line = try!(line_rslt);
+        let line = line_rslt?;
 
         match parse_line(line.as_str()) {
             Ok((Some(mut entry), rest)) => {
                 entry.filename = filename.clone();
                 entry.line_num = line_num;
                 entries.push(entry);
-                if rest.len() > 0 {
+                if !rest.is_empty() {
                     println!("Parsed an entry on line {}, but had leftover content: {:?}", line_num, rest);
                 }
             },
             Ok((None, rest)) => {
-                if rest.len() > 0 {
+                if !rest.is_empty() {
                     println!("Parsed a comment or blank line  on line {}, but had leftover content: {:?}", line_num, rest);
                 }
             },
@@ -37,7 +37,7 @@ pub fn parse_set<R: Read>(filename: String, input: &mut R) -> MagicResult<MagicS
     }
 
     let mut set = MagicSet::new(filename);
-    try!(set.add_entries(entries));
+    set.add_entries(entries)?;
     Ok(set)
 }
 
@@ -65,15 +65,15 @@ fn parse_line<I>(line: I) -> CombParseResult<I, Option<MagicEntry>>
 fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
     where I: Stream<Item = char>
 {
-    let (level, rest) = try!(many::<String, _>(try(token('>'))).parse(line).map(|(lv_str, rst)| (lv_str.len(), rst)));
-    let (offset, rest) = try!(offset(rest));
-    let (_, rest) = try!(spaces().parse(rest));
-    let ((data_type, opt_mask), rest) = try!(data_type(rest));
-    let (_, rest) = try!(spaces().parse(rest));
+    let (level, rest) = many::<String, _>(try(token('>'))).parse(line).map(|(lv_str, rst)| (lv_str.len(), rst))?;
+    let (offset, rest) = offset(rest)?;
+    let (_, rest) = spaces().parse(rest)?;
+    let ((data_type, opt_mask), rest) = data_type(rest)?;
+    let (_, rest) = spaces().parse(rest)?;
 
     match data_type {
         mut name_dt @ data_type::DataType::Name(..) => {
-            let ((name, _), rest) = try!((many::<String, _>(try(any())), eof()).parse(rest));
+            let ((name, _), rest) = (many::<String, _>(try(any())), eof()).parse(rest)?;
             name_dt = data_type::DataType::Name(name);
 
             Ok((
@@ -81,7 +81,7 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
                     filename: String::new(),
                     line_num: 0,
                     level: level as u32,
-                    offset: offset,
+                    offset,
                     test: Test::new(name_dt, TestType::AlwaysTrue),
                     message: "".to_string(),
                     mime_type: None,
@@ -90,7 +90,7 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
             ))
         },
         mut use_dt @ data_type::DataType::Use(..) => {
-            let ((name, _), rest) = try!((many::<String, _>(try(any())), eof()).parse(rest));
+            let ((name, _), rest) = (many::<String, _>(try(any())), eof()).parse(rest)?;
             use_dt = data_type::DataType::Use(name.clone());
 
             Ok((
@@ -98,7 +98,7 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
                     filename: String::new(),
                     line_num: 0,
                     level: level as u32,
-                    offset: offset,
+                    offset,
                     test: Test::new(use_dt, TestType::UseList(name)),
                     message: "".to_string(),
                     mime_type: None,
@@ -117,9 +117,9 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
                     filename: String::new(),
                     line_num: 0,
                     level: level as u32,
-                    offset: offset,
-                    test: test,
-                    message: message,
+                    offset,
+                    test,
+                    message,
                     mime_type: None,
                 },
                 rest
