@@ -1,9 +1,3 @@
-extern crate byteorder;
-extern crate combine;
-extern crate num;
-extern crate rmp_serialize;
-extern crate rustc_serialize;
-
 #[macro_use] extern crate quick_error;
 
 pub mod data_type;

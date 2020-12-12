@@ -9,7 +9,7 @@ use std::marker::PhantomData;
 pub trait ParseableInt: Num + FromBigInt + Clone + Debug {}
 impl<N> ParseableInt for N where N: Num + FromBigInt + Clone + Debug {}
 
-pub fn integer_bytes<I>(data_type: &data_type::DataType) -> IntegerBytes<I>
+pub fn integer_bytes<I>(data_type: &data_type::DataType) -> IntegerBytes<'_, I>
     where I: Stream<Item = char>
 {
     IntegerBytes {

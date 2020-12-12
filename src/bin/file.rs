@@ -1,7 +1,4 @@
-extern crate file_magic;
-extern crate rmp_serialize;
-extern crate rustc_serialize;
-
+use rmp_serialize;
 use file_magic::magic::MagicSet;
 use rmp_serialize as rmp;
 use rustc_serialize::Decodable;
