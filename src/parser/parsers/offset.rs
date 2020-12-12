@@ -1,6 +1,6 @@
 use combine::combinator::*;
 use combine::{ConsumedResult, ParseError, Parser, Stream, ParseResult};
-use magic;
+use crate::magic;
 use std::marker::PhantomData;
 use super::*;
 
@@ -49,8 +49,8 @@ impl<I> Parser for IndirectOffset<I>
     type Output = magic::IndirectOffset;
 
     fn parse_stream(&mut self, input: I) -> ParseResult<Self::Output, Self::Input> {
-        use data_type::DataType::*;
-        use endian::Endian::*;
+        use crate::data_type::DataType::*;
+        use crate::endian::Endian::*;
 
         let data_type_parser = (one_of(",.".chars()), one_of("bislBISLm".chars()));
         let bias_parser = (one_of("+-".chars()), integer::<i64, _>());
@@ -133,7 +133,7 @@ mod tests {
 
     #[test]
     fn direct_offset() {
-        use magic::DirectOffset::*;
+        use crate::magic::DirectOffset::*;
         assert_eq!(Ok((Absolute(108), "")), super::direct_offset().parse("0x6c"));
         assert_eq!(Ok((Absolute(108), "")), super::direct_offset().parse("108"));
         assert_eq!(Ok((Relative(108), "")), super::direct_offset().parse("&0x6c"));
@@ -144,10 +144,10 @@ mod tests {
 
     #[test]
     fn indirect_offset() {
-        use magic;
-        use magic::DirectOffset::*;
-        use data_type::DataType::*;
-        use endian::Endian::*;
+        use crate::magic;
+        use crate::magic::DirectOffset::*;
+        use crate::data_type::DataType::*;
+        use crate::endian::Endian::*;
 
         assert_eq!(
             Ok((magic::IndirectOffset {
@@ -170,11 +170,11 @@ mod tests {
 
     #[test]
     fn offset() {
-        use magic;
-        use magic::Offset::*;
-        use magic::DirectOffset::*;
-        use data_type::DataType::*;
-        use endian::Endian::*;
+        use crate::magic;
+        use crate::magic::Offset::*;
+        use crate::magic::DirectOffset::*;
+        use crate::data_type::DataType::*;
+        use crate::endian::Endian::*;
 
         assert_eq!(Ok((Direct(Absolute(108)), "")), super::offset().parse("108"));
         assert_eq!(Ok((Direct(Relative(108)), "")), super::offset().parse("&0x6C"));

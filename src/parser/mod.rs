@@ -1,8 +1,8 @@
 use combine::*;
 use combine::char::*;
-use data_type;
-use error::{MagicError, MagicResult};
-use magic::*;
+use crate::data_type;
+use crate::error::{MagicError, MagicResult};
+use crate::magic::*;
 use std::io::{BufRead, BufReader, Read};
 
 mod parsers;
@@ -47,8 +47,8 @@ fn parse_line<I>(line: I) -> CombParseResult<I, Option<MagicEntry>>
     where I: Stream<Item = char> + Clone
 {
     let blank = (spaces(), eof()).map(|_| None);
-    let comment = (spaces(), token('#'), many::<String, _>(try(any()))).map(|_| None);
-    let mut ignorer = try(blank).or(comment);
+    let comment = (spaces(), token('#'), many::<String, _>(r#try(any()))).map(|_| None);
+    let mut ignorer = r#try(blank).or(comment);
 
     match ignorer.parse(line.clone()) {
         v @ Ok((None, _)) => return v,
@@ -65,7 +65,7 @@ fn parse_line<I>(line: I) -> CombParseResult<I, Option<MagicEntry>>
 fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
     where I: Stream<Item = char>
 {
-    let (level, rest) = many::<String, _>(try(token('>'))).parse(line).map(|(lv_str, rst)| (lv_str.len(), rst))?;
+    let (level, rest) = many::<String, _>(r#try(token('>'))).parse(line).map(|(lv_str, rst)| (lv_str.len(), rst))?;
     let (offset, rest) = offset(rest)?;
     let (_, rest) = spaces().parse(rest)?;
     let ((data_type, opt_mask), rest) = data_type(rest)?;
@@ -73,7 +73,7 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
 
     match data_type {
         mut name_dt @ data_type::DataType::Name(..) => {
-            let ((name, _), rest) = (many::<String, _>(try(any())), eof()).parse(rest)?;
+            let ((name, _), rest) = (many::<String, _>(r#try(any())), eof()).parse(rest)?;
             name_dt = data_type::DataType::Name(name);
 
             Ok((
@@ -90,7 +90,7 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
             ))
         },
         mut use_dt @ data_type::DataType::Use(..) => {
-            let ((name, _), rest) = (many::<String, _>(try(any())), eof()).parse(rest)?;
+            let ((name, _), rest) = (many::<String, _>(r#try(any())), eof()).parse(rest)?;
             use_dt = data_type::DataType::Use(name.clone());
 
             Ok((
@@ -109,7 +109,7 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
         _ => {
             let (test_type, rest) = test_type(&data_type, opt_mask, rest)?;
             let (_, rest) = spaces().parse(rest)?;
-            let ((message, _), rest) = (many::<String, _>(try(any())), eof()).parse(rest)?;
+            let ((message, _), rest) = (many::<String, _>(r#try(any())), eof()).parse(rest)?;
             let test = Test::new(data_type, test_type);
 
             Ok((
@@ -145,7 +145,7 @@ fn data_type<I>(input: I) -> CombParseResult<I, (data_type::DataType, Option<Vec
 fn test_type<I>(data_type: &data_type::DataType, opt_mask: Option<Vec<u8>>, input: I) -> CombParseResult<I, TestType>
     where I: Stream<Item = char>
 {
-    if let ok_rslt @ Ok(..) = try(token('x').with(look_ahead(space())).map(|_| TestType::AlwaysTrue)).parse(input.clone()) {
+    if let ok_rslt @ Ok(..) = r#try(token('x').with(look_ahead(space())).map(|_| TestType::AlwaysTrue)).parse(input.clone()) {
         return ok_rslt;
     }
 
@@ -160,9 +160,9 @@ fn test_type<I>(data_type: &data_type::DataType, opt_mask: Option<Vec<u8>>, inpu
 
 #[cfg(test)]
 mod tests {
-    use data_type::DataType;
-    use endian::Endian;
-    use magic::*;
+    use crate::data_type::DataType;
+    use crate::endian::Endian;
+    use crate::magic::*;
 
     #[test]
     fn ignores_blank_lines() {

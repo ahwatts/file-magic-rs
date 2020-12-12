@@ -1,7 +1,7 @@
 use combine::char::*;
 use combine::combinator::*;
 use combine::{ParseError, ParseResult, Parser, Stream};
-use data_type;
+use crate::data_type;
 use num::{BigInt, BigUint, Num, Zero};
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -32,7 +32,7 @@ impl<'a, I> Parser for IntegerBytes<'a, I>
     type Output = Vec<u8>;
 
     fn parse_stream(&mut self, input: Self::Input) -> ParseResult<Self::Output, Self::Input> {
-        use data_type::DataType::*;
+        use crate::data_type::DataType::*;
         match self.data_type {
             Byte  { signed: false } => integer::<u8, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),
             Byte  { signed: true  } => integer::<i8, _>().map(|num| { data_type::sized_to_byte_vec(num) }).parse_stream(input),

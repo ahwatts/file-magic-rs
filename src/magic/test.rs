@@ -1,5 +1,5 @@
-use error::{MagicError, MagicResult};
-use data_type;
+use crate::error::{MagicError, MagicResult};
+use crate::data_type;
 use num::{Num, Integer};
 use std::fmt::Debug;
 use std::mem;
@@ -74,7 +74,7 @@ impl NumericTest {
     }
 
     pub fn matches_file<R: Read>(&self, data_type: &data_type::DataType, file: &mut R) -> MagicResult<bool> {
-        use data_type::DataType::*;
+        use crate::data_type::DataType::*;
 
         let actual_data = data_type.read(file)?;
 

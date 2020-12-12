@@ -1,4 +1,4 @@
-use data_type::{self, DataType};
+use crate::data_type::{self, DataType};
 use std::io::{self, Read, Seek, SeekFrom};
 
 // 123     123 bytes from the start

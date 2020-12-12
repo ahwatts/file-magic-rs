@@ -2,6 +2,7 @@
 name = "file-magic"
 version = "0.1.0"
 authors = ["Andrew Watts <ahwatts@gmail.com>"]
+edition = "2018"
 
 [[bin]]
 name = "compile"

@@ -1,7 +1,7 @@
 use combine::char::*;
 use combine::combinator::*;
 use combine::{ConsumedResult, ParseError, Parser, Stream};
-use data_type;
+use crate::data_type;
 use std::io::{self, ErrorKind};
 use std::marker::PhantomData;
 
@@ -34,8 +34,8 @@ impl<I: Stream<Item = char>> Parser for DataType<I> {
 }
 
 fn translate_data_type_value(val: String) -> io::Result<data_type::DataType> {
-    use data_type::DataType::*;
-    use endian::Endian::*;
+    use crate::data_type::DataType::*;
+    use crate::endian::Endian::*;
 
     match val.as_ref() {
         "byte"  => Ok(Byte  { signed: true }),
@@ -89,8 +89,8 @@ mod tests {
 
     #[test]
     fn data_type() {
-        use data_type::DataType::*;
-        use endian::Endian::*;
+        use crate::data_type::DataType::*;
+        use crate::endian::Endian::*;
 
         assert_eq!(Ok((Byte { signed: true  }, "")), super::data_type().parse("byte"));
 

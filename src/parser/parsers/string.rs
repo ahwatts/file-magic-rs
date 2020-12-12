@@ -1,7 +1,7 @@
 use combine::combinator::*;
 use combine::{ConsumedResult, ParseError, ParseResult, Parser, Stream};
 use std::marker::PhantomData;
-use magic;
+use crate::magic;
 use num::ToPrimitive;
 use std::iter::FromIterator;
 use std::str::Chars;
@@ -146,7 +146,7 @@ mod tests {
 
     #[test]
     fn numerical_operators() {
-        use magic::NumOp::*;
+        use crate::magic::NumOp::*;
 
         assert_eq!(Ok((Equal, "")),       super::numeric_operator().parse("="));
         assert_eq!(Ok((GreaterThan, "")), super::numeric_operator().parse(">"));
@@ -156,7 +156,7 @@ mod tests {
 
     #[test]
     fn string_operators() {
-        use magic::StringOp::*;
+        use crate::magic::StringOp::*;
 
         assert_eq!(Ok((Equal,     "")), super::string_operator().parse("="));
         assert_eq!(Ok((LexBefore, "")), super::string_operator().parse("<"));

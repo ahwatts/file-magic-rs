@@ -1,5 +1,5 @@
-use data_type::DataType;
-use error::{MagicError, MagicResult};
+use crate::data_type::DataType;
+use crate::error::{MagicError, MagicResult};
 use std::collections::HashMap;
 use std::iter::Peekable;
 use std::io::{Read, Seek};

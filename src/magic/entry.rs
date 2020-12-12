@@ -2,7 +2,7 @@ use std::io::{Read, Seek};
 use super::MatchResult;
 use super::offset::Offset;
 use super::test::Test;
-use error::MagicResult;
+use crate::error::MagicResult;
 
 #[derive(Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
 pub struct MagicEntry {

@@ -1,6 +1,6 @@
 use byteorder::{NativeEndian, WriteBytesExt};
-use endian::Endian;
-use error::{MagicError, MagicResult};
+use crate::endian::Endian;
+use crate::error::{MagicError, MagicResult};
 use num::ToPrimitive;
 use std::fmt::Debug;
 use std::io::{self, Read, Write};
@@ -100,7 +100,7 @@ impl DataType {
 
     pub fn endian(&self) -> Endian {
         use self::DataType::*;
-        use endian::Endian::*;
+        use crate::endian::Endian::*;
 
         match self {
             Byte  { .. } => Native,
