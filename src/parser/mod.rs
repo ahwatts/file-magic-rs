@@ -1,13 +1,11 @@
-use combine::*;
-use combine::char::*;
 use crate::data_type;
-use crate::error::{MagicError, MagicResult};
 use crate::magic::*;
 use std::io::{BufRead, BufReader, Read};
+use anyhow::{bail, Result};
 
 mod parsers;
 
-pub fn parse_set<R: Read>(filename: String, input: &mut R) -> MagicResult<MagicSet> {
+pub fn parse_set<R: Read>(filename: String, input: &mut R) -> Result<MagicSet> {
     let mut entries = Vec::new();
     let buf_input = BufReader::new(input);
 
@@ -31,7 +29,7 @@ pub fn parse_set<R: Read>(filename: String, input: &mut R) -> MagicResult<MagicS
             },
             Err(err) => {
                 let translated = err.translate_position(line.as_str());
-                return Err(MagicError::Parse(format!("Parse error on line {}: {}", line_num, translated)));
+                bail!("Parse error on line {}: {}", line_num, translated);
             }
         }
     }

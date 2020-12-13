@@ -1,10 +1,11 @@
-use std::io::{Read, Seek};
-use super::MatchResult;
 use super::offset::Offset;
 use super::test::Test;
-use crate::error::MagicResult;
+use super::MatchResult;
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
+use std::io::{Read, Seek};
 
-#[derive(Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct MagicEntry {
     pub filename: String,
     pub line_num: usize,
@@ -16,7 +17,7 @@ pub struct MagicEntry {
 }
 
 impl MagicEntry {
-    pub fn matches<F: Read + Seek>(&self, file: &mut F) -> MagicResult<MatchResult> {
+    pub fn matches<F: Read + Seek>(&self, file: &mut F) -> Result<MatchResult> {
         self.offset.seek_to(file)?;
         match self.test.matches(file) {
             Ok(true) => Ok(MatchResult::Matches(self.message.clone())),

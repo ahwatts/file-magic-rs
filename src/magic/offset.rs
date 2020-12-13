@@ -1,5 +1,6 @@
 use crate::data_type::{self, DataType};
 use std::io::{self, Read, Seek, SeekFrom};
+use serde::{Deserialize, Serialize};
 
 // 123     123 bytes from the start
 // &123    123 bytes from here
@@ -7,7 +8,7 @@ use std::io::{self, Read, Seek, SeekFrom};
 // (&123)  (the value at 123 bytes from here) bytes from the start
 // &(123)  (the value at 123 bytes from the start) bytes from here
 // &(&123) (the value at 123 bytes from here) bytes from here
-#[derive(Clone, Debug, PartialEq, Eq, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub enum Offset {
     Direct(DirectOffset),
     AbsoluteIndirect(IndirectOffset),
@@ -49,7 +50,7 @@ impl Offset {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub enum DirectOffset {
     Absolute(u64),
     Relative(i64),
@@ -72,7 +73,7 @@ impl DirectOffset {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IndirectOffset {
     pub base: DirectOffset,
     pub data_type: DataType,

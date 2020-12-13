@@ -1,11 +1,12 @@
-use crate::error::{MagicError, MagicResult};
 use crate::data_type;
-use num::{Num, Integer};
+use anyhow::{Result, bail};
+use num::{Integer, Num};
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use std::mem;
 use std::io::Read;
+use std::mem;
 
-#[derive(Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct Test {
     data_type: data_type::DataType,
     test_type: TestType,
@@ -31,7 +32,7 @@ impl Test {
         &mut self.test_type
     }
 
-    pub fn matches<R: Read>(&self, file: &mut R) -> MagicResult<bool> {
+    pub fn matches<R: Read>(&self, file: &mut R) -> Result<bool> {
         match self.test_type {
             TestType::AlwaysTrue => Ok(true),
             TestType::Number(ref num_test) => num_test.matches_file(&self.data_type, file),
@@ -41,7 +42,7 @@ impl Test {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub enum TestType {
     AlwaysTrue,
     Number(NumericTest),
@@ -49,7 +50,7 @@ pub enum TestType {
     UseList(String),
 }
 
-#[derive(Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct NumericTest {
     logic_op: NumOp,
     test_value: Vec<u8>,
@@ -57,7 +58,11 @@ pub struct NumericTest {
 }
 
 impl NumericTest {
-    pub fn new<N: Num + Integer>(logic_op: NumOp, test_value: N, opt_mask: Option<Vec<u8>>) -> NumericTest {
+    pub fn new<N: Num + Integer>(
+        logic_op: NumOp,
+        test_value: N,
+        opt_mask: Option<Vec<u8>>,
+    ) -> NumericTest {
         NumericTest {
             logic_op,
             test_value: data_type::sized_to_byte_vec(test_value),
@@ -65,7 +70,11 @@ impl NumericTest {
         }
     }
 
-    pub fn new_from_bytes<I: Into<Vec<u8>> + Debug>(logic_op: NumOp, test_value_bytes: I, opt_mask_bytes: Option<I>) -> NumericTest {
+    pub fn new_from_bytes<I: Into<Vec<u8>> + Debug>(
+        logic_op: NumOp,
+        test_value_bytes: I,
+        opt_mask_bytes: Option<I>,
+    ) -> NumericTest {
         NumericTest {
             logic_op,
             test_value: test_value_bytes.into(),
@@ -73,31 +82,54 @@ impl NumericTest {
         }
     }
 
-    pub fn matches_file<R: Read>(&self, data_type: &data_type::DataType, file: &mut R) -> MagicResult<bool> {
+    pub fn matches_file<R: Read>(
+        &self,
+        data_type: &data_type::DataType,
+        file: &mut R,
+    ) -> Result<bool> {
         use crate::data_type::DataType::*;
 
         let actual_data = data_type.read(file)?;
 
         match data_type {
-            Byte { signed: true  } => self.matches_type::<i8>(&actual_data),
+            Byte { signed: true } => self.matches_type::<i8>(&actual_data),
             Byte { signed: false } => self.matches_type::<u8>(&actual_data),
-            Short { endian: _, signed: true  } => self.matches_type::<i16>(&actual_data),
-            Short { endian: _, signed: false } => self.matches_type::<u16>(&actual_data),
-            Long  { endian: _, signed: true  } => self.matches_type::<i32>(&actual_data),
-            Long  { endian: _, signed: false } => self.matches_type::<u32>(&actual_data),
-            Quad  { endian: _, signed: true  } => self.matches_type::<i64>(&actual_data),
-            Quad  { endian: _, signed: false } => self.matches_type::<u64>(&actual_data),
+            Short {
+                endian: _,
+                signed: true,
+            } => self.matches_type::<i16>(&actual_data),
+            Short {
+                endian: _,
+                signed: false,
+            } => self.matches_type::<u16>(&actual_data),
+            Long {
+                endian: _,
+                signed: true,
+            } => self.matches_type::<i32>(&actual_data),
+            Long {
+                endian: _,
+                signed: false,
+            } => self.matches_type::<u32>(&actual_data),
+            Quad {
+                endian: _,
+                signed: true,
+            } => self.matches_type::<i64>(&actual_data),
+            Quad {
+                endian: _,
+                signed: false,
+            } => self.matches_type::<u64>(&actual_data),
             _ => unreachable!("Cannot match data type {:?}", data_type),
         }
     }
 
-    fn matches_type<N>(&self, actual_value: &[u8]) -> MagicResult<bool>
-        where N: Num + Integer + Debug + Sized + Copy
+    fn matches_type<N>(&self, actual_value: &[u8]) -> Result<bool>
+    where
+        N: Num + Integer + Debug + Sized + Copy,
     {
         if actual_value.len() != self.test_value.len() {
-            return Err(MagicError::LengthMismatch(self.test_value.len(), actual_value.len()));
+            bail!("Length mismatch expected: {} actual: {}", self.test_value.len(), actual_value.len());
         } else if mem::size_of::<N>() != self.test_value.len() {
-            return Err(MagicError::LengthMismatch(self.test_value.len(), mem::size_of::<N>()));
+            bail!("Length mismatch expected: {} actual: {}", self.test_value.len(), mem::size_of::<N>());
         }
 
         let casted_test: N = unsafe { *(self.test_value.as_ptr() as *const N) };
@@ -106,7 +138,7 @@ impl NumericTest {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub enum NumOp {
     Equal,
     LessThan,
@@ -124,15 +156,15 @@ impl NumOp {
         println!("NumOp matches: {:?} {:?} {:?}", lhs, self, rhs);
 
         match self {
-            Equal       => lhs == rhs,
-            LessThan    => lhs  < rhs,
-            GreaterThan => lhs  > rhs,
-            NotEqual    => lhs != rhs,
+            Equal => lhs == rhs,
+            LessThan => lhs < rhs,
+            GreaterThan => lhs > rhs,
+            NotEqual => lhs != rhs,
         }
     }
 }
 
-#[derive(Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct StringTest {
     logic_op: StringOp,
     test_val: String,
@@ -147,7 +179,7 @@ impl StringTest {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub enum StringOp {
     Equal,
     LexBefore,
@@ -162,14 +194,14 @@ mod tests {
     fn numeric_test_matches_type() {
         let test = NumericTest {
             logic_op: NumOp::Equal,
-            test_value: vec![ 3u8, 0, 0, 0 ],
+            test_value: vec![3u8, 0, 0, 0],
             mask: None,
         };
 
-        assert!(test.matches_type::<u32>(&vec![ 3u8, 0, 0, 0 ]).unwrap());
-        assert!(test.matches_type::<u32>(&[ 3u8, 0, 0, 0 ]).unwrap());
-        assert!(!test.matches_type::<u32>(&vec![ 4u8, 0, 0, 0 ]).unwrap());
-        assert!(test.matches_type::<u16>(&vec![ 3u8, 0, ]).is_err());
-        assert!(test.matches_type::<u16>(&vec![ 3u8, 0, 0, 0 ]).is_err());
+        assert!(test.matches_type::<u32>(&vec![3u8, 0, 0, 0]).unwrap());
+        assert!(test.matches_type::<u32>(&[3u8, 0, 0, 0]).unwrap());
+        assert!(!test.matches_type::<u32>(&vec![4u8, 0, 0, 0]).unwrap());
+        assert!(test.matches_type::<u16>(&vec![3u8, 0,]).is_err());
+        assert!(test.matches_type::<u16>(&vec![3u8, 0, 0, 0]).is_err());
     }
 }

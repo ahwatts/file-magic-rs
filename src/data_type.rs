@@ -1,17 +1,18 @@
-use byteorder::{NativeEndian, WriteBytesExt};
 use crate::endian::Endian;
-use crate::error::{MagicError, MagicResult};
+use anyhow::{anyhow, Result};
+use byteorder::{NativeEndian, WriteBytesExt};
 use num::ToPrimitive;
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::io::{self, Read, Write};
 use std::mem;
 
-#[derive(Clone, Debug, PartialEq, Eq, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub enum DataType {
-    Byte  {                 signed: bool },
+    Byte { signed: bool },
     Short { endian: Endian, signed: bool },
-    Long  { endian: Endian, signed: bool },
-    Quad  { endian: Endian, signed: bool },
+    Long { endian: Endian, signed: bool },
+    Quad { endian: Endian, signed: bool },
     Float(Endian),
     Double(Endian),
 
@@ -19,7 +20,6 @@ pub enum DataType {
 
     Name(String),
     Use(String),
-
     // Id3(Endian),
 
     // LongDate(Endian, TimeZone),
@@ -38,19 +38,20 @@ macro_rules! read_type_to_vec {
         let mut vec = Vec::new();
         vec.$write_mtd::<NativeEndian>(value)?;
         Ok(vec)
-    }}
+    }};
 }
 
 macro_rules! to_primitive {
     ($number:ident, $converter_mtd:ident) => {
-        $number.$converter_mtd()
-            .ok_or(
-                io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("Cannot convert {:?} using {:?}",
-                            $number,
-                            stringify!($converter_mtd))))?
-    }
+        $number.$converter_mtd().ok_or(io::Error::new(
+            io::ErrorKind::Other,
+            format!(
+                "Cannot convert {:?} using {:?}",
+                $number,
+                stringify!($converter_mtd)
+            ),
+        ))?
+    };
 }
 
 impl DataType {
@@ -63,7 +64,7 @@ impl DataType {
                 let mut vec = Vec::new();
                 vec.write_i8(value)?;
                 Ok(vec)
-            },
+            }
             Byte { signed: false } => {
                 let value = self.endian().read_u8(file)?;
                 let mut vec = Vec::new();
@@ -71,29 +72,45 @@ impl DataType {
                 Ok(vec)
             }
 
-            Short { signed: true,  .. } => read_type_to_vec!(self, file, read_i16, write_i16),
+            Short { signed: true, .. } => read_type_to_vec!(self, file, read_i16, write_i16),
             Short { signed: false, .. } => read_type_to_vec!(self, file, read_u16, write_u16),
-            Long  { signed: true,  .. } => read_type_to_vec!(self, file, read_i32, write_i32),
-            Long  { signed: false, .. } => read_type_to_vec!(self, file, read_u32, write_u32),
-            Quad  { signed: true,  .. } => read_type_to_vec!(self, file, read_i64, write_i64),
-            Quad  { signed: false, .. } => read_type_to_vec!(self, file, read_u64, write_u64),
+            Long { signed: true, .. } => read_type_to_vec!(self, file, read_i32, write_i32),
+            Long { signed: false, .. } => read_type_to_vec!(self, file, read_u32, write_u32),
+            Quad { signed: true, .. } => read_type_to_vec!(self, file, read_i64, write_i64),
+            Quad { signed: false, .. } => read_type_to_vec!(self, file, read_u64, write_u64),
 
             _ => unimplemented!(),
         }
     }
 
-    pub fn write<N: ToPrimitive + Debug, W: Write>(&self, number: N, file: &mut W) -> io::Result<()> {
+    pub fn write<N: ToPrimitive + Debug, W: Write>(
+        &self,
+        number: N,
+        file: &mut W,
+    ) -> io::Result<()> {
         use self::DataType::*;
 
         match self {
-            Byte { signed: true  } => file.write_i8(to_primitive!(number, to_i8)),
+            Byte { signed: true } => file.write_i8(to_primitive!(number, to_i8)),
             Byte { signed: false } => file.write_u8(to_primitive!(number, to_u8)),
-            Short { signed: true,  .. } => file.write_i16::<NativeEndian>(to_primitive!(number, to_i16)),
-            Short { signed: false, .. } => file.write_u16::<NativeEndian>(to_primitive!(number, to_u16)),
-            Long  { signed: true,  .. } => file.write_i32::<NativeEndian>(to_primitive!(number, to_i32)),
-            Long  { signed: false, .. } => file.write_u32::<NativeEndian>(to_primitive!(number, to_u32)),
-            Quad  { signed: true,  .. } => file.write_i64::<NativeEndian>(to_primitive!(number, to_i64)),
-            Quad  { signed: false, .. } => file.write_u64::<NativeEndian>(to_primitive!(number, to_u64)),
+            Short { signed: true, .. } => {
+                file.write_i16::<NativeEndian>(to_primitive!(number, to_i16))
+            }
+            Short { signed: false, .. } => {
+                file.write_u16::<NativeEndian>(to_primitive!(number, to_u16))
+            }
+            Long { signed: true, .. } => {
+                file.write_i32::<NativeEndian>(to_primitive!(number, to_i32))
+            }
+            Long { signed: false, .. } => {
+                file.write_u32::<NativeEndian>(to_primitive!(number, to_u32))
+            }
+            Quad { signed: true, .. } => {
+                file.write_i64::<NativeEndian>(to_primitive!(number, to_i64))
+            }
+            Quad { signed: false, .. } => {
+                file.write_u64::<NativeEndian>(to_primitive!(number, to_u64))
+            }
             _ => unimplemented!(),
         }
     }
@@ -103,11 +120,20 @@ impl DataType {
         use crate::endian::Endian::*;
 
         match self {
-            Byte  { .. } => Native,
-            Short { endian: e, signed: _ } => *e,
-            Long  { endian: e, signed: _ } => *e,
-            Quad  { endian: e, signed: _ } => *e,
-            Float(e)  => *e,
+            Byte { .. } => Native,
+            Short {
+                endian: e,
+                signed: _,
+            } => *e,
+            Long {
+                endian: e,
+                signed: _,
+            } => *e,
+            Quad {
+                endian: e,
+                signed: _,
+            } => *e,
+            Float(e) => *e,
             Double(e) => *e,
             _ => unimplemented!(),
         }
@@ -121,11 +147,11 @@ pub fn sized_to_byte_vec<T: Sized>(val: T) -> Vec<u8> {
     unsafe { Vec::from_raw_parts(ptr, length, length) }
 }
 
-pub fn byte_vec_to_sized<T: Sized>(val: Vec<u8>) -> MagicResult<T> {
+pub fn byte_vec_to_sized<T: Sized>(val: Vec<u8>) -> Result<T> {
     let length = mem::size_of::<T>();
     if length == val.len() {
         Ok(*unsafe { Box::from_raw(val.as_ptr() as *mut T) })
     } else {
-        Err(MagicError::LengthMismatch(val.len(), length))
+        Err(anyhow!("Length mismatch expected = {} actual = {}", val.len(), length))
     }
 }

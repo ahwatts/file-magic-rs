@@ -1,9 +1,10 @@
+use anyhow::{Result, bail};
 use crate::data_type::DataType;
-use crate::error::{MagicError, MagicResult};
 use std::collections::HashMap;
 use std::iter::Peekable;
 use std::io::{Read, Seek};
 use std::rc::Rc;
+use serde::{Deserialize, Serialize};
 
 pub use self::entry::*;
 pub use self::offset::*;
@@ -13,7 +14,20 @@ mod entry;
 mod offset;
 mod test;
 
-#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct SerializableMagicSet {
+    filename: String,
+    lists: Vec<MagicList>,
+    named: HashMap<String, MagicList>,
+}
+
+impl From<MagicSet> for SerializableMagicSet {
+    fn from(_magic_set: MagicSet) -> SerializableMagicSet {
+        unimplemented!()
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct MagicSet {
     filename: String,
     lists: Vec<Rc<MagicList>>,
@@ -29,12 +43,12 @@ impl MagicSet {
         }
     }
 
-    pub fn add_entries(&mut self, mut entries: Vec<MagicEntry>) -> MagicResult<()> {
+    pub fn add_entries(&mut self, mut entries: Vec<MagicEntry>) -> Result<()> {
         let mut entry_iter = entries.drain(..).peekable();
 
         while let Some(entry) = entry_iter.next() {
             if entry.level > 0 {
-                return Err(MagicError::Parse(format!("Root magic entry does not have a level of 0: {:?}", entry)));
+                bail!("Root magic entry does not have a level of 0: {:?}", entry);
             } else {
                 let opt_name = if let DataType::Name(name) = entry.test.data_type() {
                     Some(name.clone())
@@ -62,7 +76,7 @@ impl MagicSet {
         Ok(())
     }
 
-    pub fn matches<F: Read + Seek>(&self, file: &mut F) -> MagicResult<MatchResult> {
+    pub fn matches<F: Read + Seek>(&self, file: &mut F) -> Result<MatchResult> {
         use self::MatchResult::*;
 
         for list in self.lists.iter() {
@@ -77,7 +91,13 @@ impl MagicSet {
     }
 }
 
-#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
+impl From<SerializableMagicSet> for MagicSet {
+    fn from(_magic_set: SerializableMagicSet) -> MagicSet {
+        unimplemented!()
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct MagicList {
     filename: String,
     root: MagicEntry,
@@ -85,7 +105,7 @@ struct MagicList {
 }
 
 impl MagicList {
-    fn add_entries<I: Iterator<Item = MagicEntry>>(&mut self, mut entries: &mut Peekable<I>) -> MagicResult<()> {
+    fn add_entries<I: Iterator<Item = MagicEntry>>(&mut self, mut entries: &mut Peekable<I>) -> Result<()> {
         loop {
             let opt_level = entries.peek().map(|e| e.level);
 
@@ -102,9 +122,7 @@ impl MagicList {
                         list.add_entries(&mut entries)?;
                         self.children.push(list);
                     } else {
-                        return Err(MagicError::Parse(format!(
-                            "Level too deep for magic entry! {} > {} + 1",
-                            level, self.root.level)));
+                        bail!("Level too deep for magic entry! {} > {} + 1", level, self.root.level);
                     }
                 },
                 None => break,
@@ -115,7 +133,7 @@ impl MagicList {
         Ok(())
     }
 
-    pub fn matches<F: Read + Seek>(&self, file: &mut F) -> MagicResult<MatchResult> {
+    pub fn matches<F: Read + Seek>(&self, file: &mut F) -> Result<MatchResult> {
         use self::MatchResult::*;
 
         let root_match = self.root.matches(file)?;

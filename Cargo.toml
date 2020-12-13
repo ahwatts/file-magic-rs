@@ -19,7 +19,7 @@ nom = "^6.0.1"
 num = "^0.3.1"
 rmp = "^0.8.9"
 rmp-serde = "^0.15.0"
-serde = "^1.0.118"
+serde = { version = "^1.0.118", features = ["derive"] }
 
 # combine = "^2.3.1"
 # quick-error = "^1.1.0"

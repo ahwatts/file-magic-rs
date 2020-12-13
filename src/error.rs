@@ -1,4 +1,4 @@
-use std::io;
+/* use std::io;
 
 pub type MagicResult<T> = Result<T, MagicError>;
 
@@ -21,3 +21,4 @@ quick_error! {
         }
     }
 }
+*/
