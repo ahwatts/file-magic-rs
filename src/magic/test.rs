@@ -1,5 +1,5 @@
 use crate::data_type;
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 use num::{Integer, Num};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -127,9 +127,17 @@ impl NumericTest {
         N: Num + Integer + Debug + Sized + Copy,
     {
         if actual_value.len() != self.test_value.len() {
-            bail!("Length mismatch expected: {} actual: {}", self.test_value.len(), actual_value.len());
+            bail!(
+                "Length mismatch expected: {} actual: {}",
+                self.test_value.len(),
+                actual_value.len()
+            );
         } else if mem::size_of::<N>() != self.test_value.len() {
-            bail!("Length mismatch expected: {} actual: {}", self.test_value.len(), mem::size_of::<N>());
+            bail!(
+                "Length mismatch expected: {} actual: {}",
+                self.test_value.len(),
+                mem::size_of::<N>()
+            );
         }
 
         let casted_test: N = unsafe { *(self.test_value.as_ptr() as *const N) };

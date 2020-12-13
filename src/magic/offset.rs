@@ -1,6 +1,6 @@
 use crate::data_type::{self, DataType};
-use std::io::{self, Read, Seek, SeekFrom};
 use serde::{Deserialize, Serialize};
+use std::io::{self, Read, Seek, SeekFrom};
 
 // 123     123 bytes from the start
 // &123    123 bytes from here
@@ -41,10 +41,10 @@ impl Offset {
             Offset::Direct(off) => *off,
             Offset::AbsoluteIndirect(indirect) => {
                 DirectOffset::Absolute(indirect.read_absolute_offset(file)?)
-            },
+            }
             Offset::RelativeIndirect(indirect) => {
                 DirectOffset::Relative(indirect.read_relative_offset(file)?)
-            },
+            }
         };
         direct.seek_to(file)
     }
@@ -85,18 +85,14 @@ impl IndirectOffset {
         let bytes = self.read_offset_as_vec(file)?;
         data_type::byte_vec_to_sized::<u64>(bytes)
             .map(|o| (o as i64 + self.bias) as u64)
-            .map_err(|e| {
-                io::Error::new(io::ErrorKind::Other, e)
-            })
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
     }
 
     pub fn read_relative_offset<F: Read + Seek>(&self, file: &mut F) -> io::Result<i64> {
         let bytes = self.read_offset_as_vec(file)?;
         data_type::byte_vec_to_sized::<i64>(bytes)
             .map(|o| o + self.bias)
-            .map_err(|e| {
-                io::Error::new(io::ErrorKind::Other, e)
-            })
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
     }
 
     fn read_offset_as_vec<F: Read + Seek>(&self, file: &mut F) -> io::Result<Vec<u8>> {
@@ -107,9 +103,9 @@ impl IndirectOffset {
 
 #[cfg(test)]
 mod tests {
-    use std::iter;
-    use std::io::Cursor;
     use super::*;
+    use std::io::Cursor;
+    use std::iter;
 
     #[test]
     fn absolute_direct_offset_seek_to() {
@@ -118,7 +114,9 @@ mod tests {
         DirectOffset::Absolute(40).seek_to(&mut opened).unwrap();
         assert_eq!(40, opened.position());
 
-        Offset::Direct(DirectOffset::Absolute(1000)).seek_to(&mut opened).unwrap();
+        Offset::Direct(DirectOffset::Absolute(1000))
+            .seek_to(&mut opened)
+            .unwrap();
         assert_eq!(1000, opened.position());
     }
 
@@ -130,7 +128,9 @@ mod tests {
         DirectOffset::Relative(-10).seek_to(&mut opened).unwrap();
         assert_eq!(30, opened.position());
 
-        Offset::Direct(DirectOffset::Relative(500)).seek_to(&mut opened).unwrap();
+        Offset::Direct(DirectOffset::Relative(500))
+            .seek_to(&mut opened)
+            .unwrap();
         assert_eq!(530, opened.position());
     }
 }

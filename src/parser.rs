@@ -1,5 +1,11 @@
-use crate::magic::MagicSet;
-use anyhow::Result;
+use crate::magic::{MagicEntry, MagicSet};
+use anyhow::{bail, Result};
+use nom::branch::alt;
+use nom::bytes::complete::tag;
+use nom::character::complete::{not_line_ending, space0};
+use nom::combinator::{eof, value};
+use nom::sequence::{pair, tuple};
+use nom::IResult;
 use std::io::{BufRead, BufReader, Read};
 
 // mod parsers;
@@ -9,36 +15,55 @@ pub fn parse_set<R: Read>(filename: String, input: &mut R) -> Result<MagicSet> {
     let buf_input = BufReader::new(input);
 
     for (line_num_minus_one, line_rslt) in buf_input.lines().enumerate() {
-        let _line_num = line_num_minus_one + 1;
-        let _line = line_rslt?;
+        let line_num = line_num_minus_one + 1;
+        let line = line_rslt?;
 
-        /* match parse_line(line.as_str()) {
-            Ok((Some(mut entry), rest)) => {
-                entry.filename = filename.clone();
-                entry.line_num = line_num;
-                entries.push(entry);
+        match parse_line(&line) {
+            Ok((rest, None)) => {
                 if !rest.is_empty() {
-                    println!(
-                        "Parsed an entry on line {}, but had leftover content: {:?}",
+                    eprintln!(
+                        "Parsed a comment or blank line on line {}, but had leftover content: {:?}",
                         line_num, rest
                     );
                 }
             }
-            Ok((None, rest)) => {
-                if !rest.is_empty() {
-                    println!("Parsed a comment or blank line  on line {}, but had leftover content: {:?}", line_num, rest);
-                }
-            }
             Err(err) => {
-                let translated = err.translate_position(line.as_str());
-                bail!("Parse error on line {}: {}", line_num, translated);
+                bail!("Parse error on line {}: {}", line_num, err);
             }
-        } */
+            _ => {}
+            // Ok((Some(mut entry), rest)) => {
+            //     entry.filename = filename.clone();
+            //     entry.line_num = line_num;
+            //     entries.push(entry);
+            //     if !rest.is_empty() {
+            //         println!(
+            //             "Parsed an entry on line {}, but had leftover content: {:?}",
+            //             line_num, rest
+            //         );
+            //     }
+            // }
+            // Ok((None, rest)) => {
+            //     if !rest.is_empty() {
+            //         println!("Parsed a comment or blank line  on line {}, but had leftover content: {:?}", line_num, rest);
+            //     }
+            // }
+            // Err(err) => {
+            //     let translated = err.translate_position(line.as_str());
+            //     bail!("Parse error on line {}: {}", line_num, translated);
+            // }
+        }
     }
 
     let mut set = MagicSet::new(filename);
     set.add_entries(entries)?;
     Ok(set)
+}
+
+fn parse_line<'a>(line: &'a str) -> IResult<&'a str, Option<MagicEntry>> {
+    alt((
+        value(None, pair(space0, eof)),
+        value(None, tuple((space0, tag("#"), not_line_ending, eof))),
+    ))(line)
 }
 
 /*
@@ -156,29 +181,31 @@ fn test_type<I>(data_type: &data_type::DataType, opt_mask: Option<Vec<u8>>, inpu
         Ok((TestType::Number(NumericTest::new_from_bytes(op.unwrap_or(NumOp::Equal), num, opt_mask)), rest))
     }
 }
+*/
 
 #[cfg(test)]
 mod tests {
-    use crate::data_type::DataType;
-    use crate::endian::Endian;
-    use crate::magic::*;
+    // use crate::data_type::DataType;
+    // use crate::endian::Endian;
+    // use crate::magic::*;
 
     #[test]
     fn ignores_blank_lines() {
-        assert_eq!(Ok((None, "")), super::parse_line(""));
-        assert_eq!(Ok((None, "")), super::parse_line("    "));
-        assert_eq!(Ok((None, "")), super::parse_line("\t\t\t"));
-        assert_eq!(Ok((None, "")), super::parse_line("  \t  "));
+        assert_eq!(Ok(("", None)), super::parse_line(""));
+        assert_eq!(Ok(("", None)), super::parse_line("    "));
+        assert_eq!(Ok(("", None)), super::parse_line("\t\t\t"));
+        assert_eq!(Ok(("", None)), super::parse_line("  \t  "));
     }
 
     #[test]
     fn ignores_comments() {
-        assert_eq!(Ok((None, "")), super::parse_line("#"));
-        assert_eq!(Ok((None, "")), super::parse_line("# Comment"));
-        assert_eq!(Ok((None, "")), super::parse_line("   # Comment"));
-        assert_eq!(Ok((None, "")), super::parse_line("  \t #\t"));
+        assert_eq!(Ok(("", None)), super::parse_line("#"));
+        assert_eq!(Ok(("", None)), super::parse_line("# Comment"));
+        assert_eq!(Ok(("", None)), super::parse_line("   # Comment"));
+        assert_eq!(Ok(("", None)), super::parse_line("  \t #\t"));
     }
 
+    /*
     #[test]
     fn direct_offset() {
         assert_eq!(Ok((Offset::Direct(DirectOffset::Absolute(108)), "")), super::offset("108"));
@@ -278,5 +305,5 @@ mod tests {
             "0	name	riff-walk"
         ));
     }
+    */
 }
-*/

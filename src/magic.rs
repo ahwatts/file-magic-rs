@@ -1,10 +1,10 @@
-use anyhow::{Result, bail};
 use crate::data_type::DataType;
-use std::collections::HashMap;
-use std::iter::Peekable;
-use std::io::{Read, Seek};
-use std::rc::Rc;
+use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::io::{Read, Seek};
+use std::iter::Peekable;
+use std::rc::Rc;
 
 pub use self::entry::*;
 pub use self::offset::*;
@@ -82,7 +82,7 @@ impl MagicSet {
         for list in self.lists.iter() {
             match list.matches(file) {
                 v @ Ok(Matches(..)) => return v,
-                Ok(NoMatch) => {},
+                Ok(NoMatch) => {}
                 v @ Err(..) => return v,
             }
         }
@@ -105,7 +105,10 @@ struct MagicList {
 }
 
 impl MagicList {
-    fn add_entries<I: Iterator<Item = MagicEntry>>(&mut self, mut entries: &mut Peekable<I>) -> Result<()> {
+    fn add_entries<I: Iterator<Item = MagicEntry>>(
+        &mut self,
+        mut entries: &mut Peekable<I>,
+    ) -> Result<()> {
         loop {
             let opt_level = entries.peek().map(|e| e.level);
 
@@ -122,12 +125,15 @@ impl MagicList {
                         list.add_entries(&mut entries)?;
                         self.children.push(list);
                     } else {
-                        bail!("Level too deep for magic entry! {} > {} + 1", level, self.root.level);
+                        bail!(
+                            "Level too deep for magic entry! {} > {} + 1",
+                            level,
+                            self.root.level
+                        );
                     }
-                },
+                }
                 None => break,
             }
-
         }
 
         Ok(())
@@ -147,7 +153,7 @@ impl MagicList {
                     }
                 }
                 Ok(Matches(message.join(", ")))
-            },
+            }
             NoMatch => Ok(NoMatch),
         }
     }

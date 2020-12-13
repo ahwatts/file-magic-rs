@@ -152,6 +152,10 @@ pub fn byte_vec_to_sized<T: Sized>(val: Vec<u8>) -> Result<T> {
     if length == val.len() {
         Ok(*unsafe { Box::from_raw(val.as_ptr() as *mut T) })
     } else {
-        Err(anyhow!("Length mismatch expected = {} actual = {}", val.len(), length))
+        Err(anyhow!(
+            "Length mismatch expected = {} actual = {}",
+            val.len(),
+            length
+        ))
     }
 }
