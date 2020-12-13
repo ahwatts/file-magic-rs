@@ -1,37 +1,39 @@
-use crate::data_type;
-use crate::magic::*;
+use crate::magic::MagicSet;
+use anyhow::Result;
 use std::io::{BufRead, BufReader, Read};
-use anyhow::{bail, Result};
 
-mod parsers;
+// mod parsers;
 
 pub fn parse_set<R: Read>(filename: String, input: &mut R) -> Result<MagicSet> {
-    let mut entries = Vec::new();
+    let entries = Vec::new();
     let buf_input = BufReader::new(input);
 
     for (line_num_minus_one, line_rslt) in buf_input.lines().enumerate() {
-        let line_num = line_num_minus_one + 1;
-        let line = line_rslt?;
+        let _line_num = line_num_minus_one + 1;
+        let _line = line_rslt?;
 
-        match parse_line(line.as_str()) {
+        /* match parse_line(line.as_str()) {
             Ok((Some(mut entry), rest)) => {
                 entry.filename = filename.clone();
                 entry.line_num = line_num;
                 entries.push(entry);
                 if !rest.is_empty() {
-                    println!("Parsed an entry on line {}, but had leftover content: {:?}", line_num, rest);
+                    println!(
+                        "Parsed an entry on line {}, but had leftover content: {:?}",
+                        line_num, rest
+                    );
                 }
-            },
+            }
             Ok((None, rest)) => {
                 if !rest.is_empty() {
                     println!("Parsed a comment or blank line  on line {}, but had leftover content: {:?}", line_num, rest);
                 }
-            },
+            }
             Err(err) => {
                 let translated = err.translate_position(line.as_str());
                 bail!("Parse error on line {}: {}", line_num, translated);
             }
-        }
+        } */
     }
 
     let mut set = MagicSet::new(filename);
@@ -39,11 +41,10 @@ pub fn parse_set<R: Read>(filename: String, input: &mut R) -> Result<MagicSet> {
     Ok(set)
 }
 
+/*
 type CombParseResult<I, O> = Result<(O, I), ParseError<I>>;
 
-fn parse_line<I>(line: I) -> CombParseResult<I, Option<MagicEntry>>
-    where I: Stream<Item = char> + Clone
-{
+fn parse_line<I>(line: I) -> Result<Option<MagicEntry>> {
     let blank = (spaces(), eof()).map(|_| None);
     let comment = (spaces(), token('#'), many::<String, _>(r#try(any()))).map(|_| None);
     let mut ignorer = r#try(blank).or(comment);
@@ -278,3 +279,4 @@ mod tests {
         ));
     }
 }
+*/
