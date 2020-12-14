@@ -1,5 +1,5 @@
+use crate::parser::offset::offset;
 use crate::magic::{MagicEntry, MagicSet};
-use crate::parser::parsers::offset;
 use anyhow::{bail, Result};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
@@ -10,7 +10,8 @@ use nom::sequence::{pair, tuple};
 use nom::IResult;
 use std::io::{BufRead, BufReader, Read};
 
-mod parsers;
+mod number;
+mod offset;
 
 pub fn parse_set<R: Read>(filename: String, input: &mut R) -> Result<MagicSet> {
     let mut entries = Vec::new();

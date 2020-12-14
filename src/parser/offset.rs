@@ -1,5 +1,5 @@
 use crate::magic::{DirectOffset, Offset};
-use crate::parser::parsers::number;
+use crate::parser::number::number;
 use nom::bytes::complete::tag;
 use nom::combinator::{map, opt};
 use nom::sequence::pair;
