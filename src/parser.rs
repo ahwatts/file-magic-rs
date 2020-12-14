@@ -1,24 +1,37 @@
 use crate::magic::{MagicEntry, MagicSet};
+use crate::parser::parsers::offset;
 use anyhow::{bail, Result};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{not_line_ending, space0};
-use nom::combinator::{eof, value};
+use nom::combinator::{eof, map, value};
+use nom::multi::many0_count;
 use nom::sequence::{pair, tuple};
 use nom::IResult;
 use std::io::{BufRead, BufReader, Read};
 
-// mod parsers;
+mod parsers;
 
 pub fn parse_set<R: Read>(filename: String, input: &mut R) -> Result<MagicSet> {
-    let entries = Vec::new();
+    let mut entries = Vec::new();
     let buf_input = BufReader::new(input);
 
     for (line_num_minus_one, line_rslt) in buf_input.lines().enumerate() {
         let line_num = line_num_minus_one + 1;
-        let line = line_rslt?;
+        let input = line_rslt?;
 
-        match parse_line(&line) {
+        match line(&input) {
+            Ok((rest, Some(mut entry))) => {
+                entry.filename = filename.clone();
+                entry.line_num = line_num;
+                entries.push(entry);
+                if !rest.is_empty() {
+                    eprintln!(
+                        "Parsed an entry on line {}, but had leftover content: {:?}",
+                        line_num, rest
+                    );
+                }
+            }
             Ok((rest, None)) => {
                 if !rest.is_empty() {
                     eprintln!(
@@ -30,27 +43,6 @@ pub fn parse_set<R: Read>(filename: String, input: &mut R) -> Result<MagicSet> {
             Err(err) => {
                 bail!("Parse error on line {}: {}", line_num, err);
             }
-            _ => {}
-            // Ok((Some(mut entry), rest)) => {
-            //     entry.filename = filename.clone();
-            //     entry.line_num = line_num;
-            //     entries.push(entry);
-            //     if !rest.is_empty() {
-            //         println!(
-            //             "Parsed an entry on line {}, but had leftover content: {:?}",
-            //             line_num, rest
-            //         );
-            //     }
-            // }
-            // Ok((None, rest)) => {
-            //     if !rest.is_empty() {
-            //         println!("Parsed a comment or blank line  on line {}, but had leftover content: {:?}", line_num, rest);
-            //     }
-            // }
-            // Err(err) => {
-            //     let translated = err.translate_position(line.as_str());
-            //     bail!("Parse error on line {}: {}", line_num, translated);
-            // }
         }
     }
 
@@ -59,33 +51,24 @@ pub fn parse_set<R: Read>(filename: String, input: &mut R) -> Result<MagicSet> {
     Ok(set)
 }
 
-fn parse_line<'a>(line: &'a str) -> IResult<&'a str, Option<MagicEntry>> {
+fn line(input: &str) -> IResult<&str, Option<MagicEntry>> {
     alt((
+        // Blank line
         value(None, pair(space0, eof)),
+        // Comment
         value(None, tuple((space0, tag("#"), not_line_ending, eof))),
-    ))(line)
+        // Actual entry
+        map(entry, |e| Some(e)),
+    ))(input)
+}
+
+fn entry(input: &str) -> IResult<&str, MagicEntry> {
+    let (rest, _level) = many0_count(tag(">"))(input)?;
+    let (_rest, _offset) = offset(rest)?;
+    unimplemented!()
 }
 
 /*
-type CombParseResult<I, O> = Result<(O, I), ParseError<I>>;
-
-fn parse_line<I>(line: I) -> Result<Option<MagicEntry>> {
-    let blank = (spaces(), eof()).map(|_| None);
-    let comment = (spaces(), token('#'), many::<String, _>(r#try(any()))).map(|_| None);
-    let mut ignorer = r#try(blank).or(comment);
-
-    match ignorer.parse(line.clone()) {
-        v @ Ok((None, _)) => return v,
-        Ok((Some(v), _)) => unreachable!("Parsed something from blanks or comments (!?!?): {:?}", v),
-        Err(..) => {}
-    }
-
-    entry(line).map(|(ent, rest)| {
-        // println!("{:?}", ent);
-        (Some(ent), rest)
-    })
-}
-
 fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
     where I: Stream<Item = char>
 {
@@ -191,18 +174,18 @@ mod tests {
 
     #[test]
     fn ignores_blank_lines() {
-        assert_eq!(Ok(("", None)), super::parse_line(""));
-        assert_eq!(Ok(("", None)), super::parse_line("    "));
-        assert_eq!(Ok(("", None)), super::parse_line("\t\t\t"));
-        assert_eq!(Ok(("", None)), super::parse_line("  \t  "));
+        assert_eq!(Ok(("", None)), super::line(""));
+        assert_eq!(Ok(("", None)), super::line("    "));
+        assert_eq!(Ok(("", None)), super::line("\t\t\t"));
+        assert_eq!(Ok(("", None)), super::line("  \t  "));
     }
 
     #[test]
     fn ignores_comments() {
-        assert_eq!(Ok(("", None)), super::parse_line("#"));
-        assert_eq!(Ok(("", None)), super::parse_line("# Comment"));
-        assert_eq!(Ok(("", None)), super::parse_line("   # Comment"));
-        assert_eq!(Ok(("", None)), super::parse_line("  \t #\t"));
+        assert_eq!(Ok(("", None)), super::line("#"));
+        assert_eq!(Ok(("", None)), super::line("# Comment"));
+        assert_eq!(Ok(("", None)), super::line("   # Comment"));
+        assert_eq!(Ok(("", None)), super::line("  \t #\t"));
     }
 
     /*

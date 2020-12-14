@@ -1,9 +1,27 @@
-use combine::combinator::*;
-use combine::{ConsumedResult, ParseError, Parser, Stream, ParseResult};
-use crate::magic;
-use std::marker::PhantomData;
-use super::*;
+use crate::magic::{DirectOffset, Offset};
+use crate::parser::parsers::number;
+use nom::bytes::complete::tag;
+use nom::combinator::{map, opt};
+use nom::sequence::pair;
+use nom::IResult;
 
+pub fn offset(input: &str) -> IResult<&str, Offset> {
+    map(direct_offset, |doff| Offset::Direct(doff))(input)
+}
+
+pub fn direct_offset(input: &str) -> IResult<&str, DirectOffset> {
+    map(
+        pair(opt(tag("&")), number),
+        |(opt_amp, num)| {
+            match opt_amp {
+                Some(..) => DirectOffset::relative(num),
+                None => DirectOffset::absolute(num as u64),
+            }
+        }
+    )(input)
+}
+
+/*
 pub fn direct_offset<I>() -> DirectOffset<I>
     where I: Stream<Item = char>
 {
@@ -126,22 +144,22 @@ impl<I> Parser for Offset<I>
         }
     }
 }
+*/
 
 #[cfg(test)]
 mod tests {
-    use combine::Parser;
-
     #[test]
     fn direct_offset() {
         use crate::magic::DirectOffset::*;
-        assert_eq!(Ok((Absolute(108), "")), super::direct_offset().parse("0x6c"));
-        assert_eq!(Ok((Absolute(108), "")), super::direct_offset().parse("108"));
-        assert_eq!(Ok((Relative(108), "")), super::direct_offset().parse("&0x6c"));
-        assert_eq!(Ok((Relative(108), "")), super::direct_offset().parse("&108"));
-        assert_eq!(Ok((Relative(-108), "")), super::direct_offset().parse("&-0x6c"));
-        assert_eq!(Ok((Relative(-108), "")), super::direct_offset().parse("&-108"));
+        assert_eq!(Ok(("", Absolute(108))), super::direct_offset("0x6c"));
+        assert_eq!(Ok(("", Absolute(108))), super::direct_offset("108"));
+        assert_eq!(Ok(("", Relative(108))), super::direct_offset("&0x6c"));
+        assert_eq!(Ok(("", Relative(108))), super::direct_offset("&108"));
+        assert_eq!(Ok(("", Relative(-108))), super::direct_offset("&-0x6c"));
+        assert_eq!(Ok(("", Relative(-108))), super::direct_offset("&-108"));
     }
 
+    /*
     #[test]
     fn indirect_offset() {
         use crate::magic;
@@ -167,52 +185,74 @@ mod tests {
             super::indirect_offset().parse("(4.l+4)")
         );
     }
+    */
 
     #[test]
     fn offset() {
-        use crate::magic;
-        use crate::magic::Offset::*;
-        use crate::magic::DirectOffset::*;
         use crate::data_type::DataType::*;
         use crate::endian::Endian::*;
+        use crate::magic;
+        use crate::magic::DirectOffset::*;
+        use crate::magic::Offset::*;
 
-        assert_eq!(Ok((Direct(Absolute(108)), "")), super::offset().parse("108"));
-        assert_eq!(Ok((Direct(Relative(108)), "")), super::offset().parse("&0x6C"));
+        assert_eq!(Ok(("", Direct(Absolute(108)))), super::offset("108"));
+        assert_eq!(Ok(("", Direct(Relative(108)))), super::offset("&0x6C"));
 
         assert_eq!(
-            Ok((AbsoluteIndirect(magic::IndirectOffset {
-                base: Absolute(108),
-                data_type: Short { signed: false, endian: Big },
-                bias: 0,
-            }), "")),
-            super::offset().parse("(108.S)")
+            Ok((
+                "",
+                AbsoluteIndirect(magic::IndirectOffset {
+                    base: Absolute(108),
+                    data_type: Short {
+                        signed: false,
+                        endian: Big
+                    },
+                    bias: 0,
+                }),
+            )),
+            super::offset("(108.S)")
         );
 
         assert_eq!(
-            Ok((AbsoluteIndirect(magic::IndirectOffset {
-                base: Relative(108),
-                data_type: Long { signed: true, endian: Little },
-                bias: -5,
-            }), "")),
-            super::offset().parse("(&108,l-5)")
+            Ok((
+                "",
+                AbsoluteIndirect(magic::IndirectOffset {
+                    base: Relative(108),
+                    data_type: Long {
+                        signed: true,
+                        endian: Little
+                    },
+                    bias: -5,
+                }),
+            )),
+            super::offset("(&108,l-5)")
         );
 
         assert_eq!(
-            Ok((RelativeIndirect(magic::IndirectOffset {
-                base: Absolute(108),
-                data_type: Byte { signed: false },
-                bias: 8,
-            }), "")),
-            super::offset().parse("&(0x6c.B+8)")
+            Ok((
+                "",
+                RelativeIndirect(magic::IndirectOffset {
+                    base: Absolute(108),
+                    data_type: Byte { signed: false },
+                    bias: 8,
+                }),
+            )),
+            super::offset("&(0x6c.B+8)")
         );
 
         assert_eq!(
-            Ok((RelativeIndirect(magic::IndirectOffset {
-                base: Relative(108),
-                data_type: Long { signed: false, endian: Native },
-                bias: 0,
-            }), "")),
-            super::offset().parse("&(&108)")
+            Ok((
+                "",
+                RelativeIndirect(magic::IndirectOffset {
+                    base: Relative(108),
+                    data_type: Long {
+                        signed: false,
+                        endian: Native
+                    },
+                    bias: 0,
+                }),
+            )),
+            super::offset("&(&108)")
         );
     }
 }

@@ -1,11 +1,15 @@
-use combine::char::*;
-use combine::combinator::*;
-use combine::{ParseError, ParseResult, Parser, Stream};
-use crate::data_type;
-use num::{BigInt, BigUint, Num, Zero};
+use nom::IResult;
+use num::Num;
 use std::fmt::Debug;
-use std::marker::PhantomData;
 
+pub trait ParseableInt: Num + Clone + Debug {}
+impl<N> ParseableInt for N where N: Num + Clone + Debug {}
+
+pub fn number<N: ParseableInt>(_input: &str) -> IResult<&str, N> {
+    unimplemented!()
+}
+
+/*
 pub trait ParseableInt: Num + FromBigInt + Clone + Debug {}
 impl<N> ParseableInt for N where N: Num + FromBigInt + Clone + Debug {}
 
@@ -272,9 +276,11 @@ from_big_int_impl!(i8,  u8,  to_i8,  to_u8);
 from_big_int_impl!(i16, u16, to_i16, to_u16);
 from_big_int_impl!(i32, u32, to_i32, to_u32);
 from_big_int_impl!(i64, u64, to_i64, to_u64);
+*/
 
 #[cfg(test)]
 mod tests {
+    /*
     macro_rules! test_uint_boundaries {
         ($bits:expr, $int_type:ident, $format_str:expr) => {
             let bits_m1: $int_type = $bits - 1;
@@ -390,4 +396,5 @@ mod tests {
     //     let bytes = vec![ 0, 0, 0, 0, 0, 0, 0, 0 ];
     //     assert_eq!(Ok((bytes.clone(), "")), super::integer_bytes(&dt).parse("0"));
     // }
+    */
 }
