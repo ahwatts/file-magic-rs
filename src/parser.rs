@@ -58,7 +58,7 @@ fn line(input: &str) -> IResult<&str, Option<MagicEntry>> {
         // Comment
         value(None, tuple((space0, tag("#"), not_line_ending, eof))),
         // Actual entry
-        map(entry, |e| Some(e)),
+        map(entry, Some),
     ))(input)
 }
 

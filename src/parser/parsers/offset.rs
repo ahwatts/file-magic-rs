@@ -6,7 +6,7 @@ use nom::sequence::pair;
 use nom::IResult;
 
 pub fn offset(input: &str) -> IResult<&str, Offset> {
-    map(direct_offset, |doff| Offset::Direct(doff))(input)
+    map(direct_offset, Offset::Direct)(input)
 }
 
 pub fn direct_offset(input: &str) -> IResult<&str, DirectOffset> {
