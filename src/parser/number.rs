@@ -1,12 +1,28 @@
-use nom::IResult;
-use num::Num;
-use std::fmt::Debug;
+use nom::{
+    branch::alt,
+    bytes::complete::tag,
+    character::complete::{digit1, hex_digit1, oct_digit1},
+    combinator::map_res,
+    sequence::preceded,
+    IResult,
+};
+use num::{BigUint, Integer, Num, Unsigned};
+use std::convert::TryFrom;
 
-pub trait ParseableInt: Num + Clone + Debug {}
-impl<N> ParseableInt for N where N: Num + Clone + Debug {}
+pub fn unsigned_integer<N: Integer + Unsigned + TryFrom<BigUint>>(input: &str) -> IResult<&str, N> {
+    map_res(big_integer, N::try_from)(input)
+}
 
-pub fn number<N: ParseableInt>(_input: &str) -> IResult<&str, N> {
-    unimplemented!()
+fn big_integer(input: &str) -> IResult<&str, BigUint> {
+    alt((
+        map_res(preceded(tag("0x"), hex_digit1), |value| {
+            BigUint::from_str_radix(value, 16)
+        }),
+        map_res(preceded(tag("0"), oct_digit1), |value| {
+            BigUint::from_str_radix(value, 8)
+        }),
+        map_res(digit1, |value| BigUint::from_str_radix(value, 10)),
+    ))(input)
 }
 
 /*
@@ -50,237 +66,10 @@ impl<'a, I> Parser for IntegerBytes<'a, I>
         }
     }
 }
-
-/// Parses a possibly-negative integer in either decimal, octal (with
-/// a leading 0), or hexidecimal (with a leading 0x). Converts it to
-/// primitive type N.
-pub fn integer<N, I>() -> Integer<N, I>
-    where N: ParseableInt,
-          I: Stream<Item = char>
-{
-    Integer(PhantomData)
-}
-
-pub struct Integer<N, I>(PhantomData<fn(I) -> N>)
-    where N: ParseableInt,
-          I: Stream<Item = char>;
-
-impl<N, I> Parser for Integer<N, I>
-    where N: ParseableInt,
-          I: Stream<Item = char>
-{
-    type Input = I;
-    type Output = N;
-
-    fn parse_stream(&mut self, input: Self::Input) -> ParseResult<Self::Output, Self::Input> {
-        let (bival, rest) = raw_integer().parse_stream(input)?;
-        Ok((N::from_bigint(bival), rest))
-    }
-}
-
-
-/// Parses a possibly-negative integer in either decimal, octal (with
-/// a leading 0), or hexidecimal (with a leading 0x). Returns it as a
-/// BigInt.
-pub fn raw_integer<I>() -> RawInteger<I>
-    where I: Stream<Item = char>
-{
-    RawInteger(PhantomData)
-}
-
-pub struct RawInteger<I>(PhantomData<fn(I) -> BigInt>)
-    where I: Stream<Item = char>;
-
-impl<I> Parser for RawInteger<I>
-    where I: Stream<Item = char>
-{
-    type Input = I;
-    type Output = BigInt;
-
-    fn parse_stream(&mut self, input: Self::Input) -> ParseResult<Self::Output, Self::Input> {
-        let ((opt_neg, uval), rest) = (
-            optional(token('-')),
-            token('0')
-                .with(token('x').with(hex_integer())
-                      .or(oct_integer())
-                      .or(value(BigUint::zero())))
-                .or(dec_integer())
-        ).parse_stream(input)?;
-
-        let ival = match opt_neg {
-            Some(..) => -BigInt::from(uval),
-            None => BigInt::from(uval),
-        };
-
-        Ok((ival, rest))
-    }
-}
-
-/// Parses a non-negative hexidecimal integer.
-pub fn hex_integer<I>() -> HexInteger<I>
-    where I: Stream<Item = char>
-{
-    HexInteger(PhantomData)
-}
-
-pub struct HexInteger<I>(PhantomData<fn(I) -> BigUint>)
-    where I: Stream<Item = char>;
-
-impl<I> Parser for HexInteger<I>
-    where I: Stream<Item = char>
-{
-    type Input = I;
-    type Output = BigUint;
-
-    fn parse_stream(&mut self, input: Self::Input) -> ParseResult<Self::Output, Self::Input> {
-        use combine::primitives::{Consumed, Error};
-
-        let position = input.position();
-        let (num_str, rest) = many1::<String, _>(hex_digit()).parse_stream(input)?;
-
-        match parse_str_radix(&num_str, 16) {
-            Ok(n) => Ok((n, rest)),
-            Err(s) => {
-                let err = ParseError::new(position, Error::Message(From::from(s)));
-                Err(Consumed::Consumed(err))
-            }
-        }
-    }
-}
-
-/// Parses a non-negative decimal integer.
-pub fn dec_integer<I>() -> DecInteger<I>
-    where I: Stream<Item = char>
-{
-    DecInteger(PhantomData)
-}
-
-pub struct DecInteger<I>(PhantomData<fn(I) -> BigUint>)
-    where I: Stream<Item = char>;
-
-impl<I> Parser for DecInteger<I>
-    where I: Stream<Item = char>
-{
-    type Input = I;
-    type Output = BigUint;
-
-    fn parse_stream(&mut self, input: Self::Input) -> ParseResult<Self::Output, Self::Input> {
-        use combine::primitives::{Consumed, Error};
-
-        let position = input.position();
-        let (num_str, rest) = many1::<String, _>(digit()).parse_stream(input)?;
-
-        match parse_str_radix(&num_str, 10) {
-            Ok(n) => Ok((n, rest)),
-            Err(s) => {
-                let err = ParseError::new(position, Error::Message(From::from(s)));
-                Err(Consumed::Consumed(err))
-            }
-        }
-    }
-}
-
-/// Parses a non-negative octal integer.
-pub fn oct_integer<I>() -> OctInteger<I>
-    where I: Stream<Item = char>
-{
-    OctInteger(PhantomData)
-}
-
-pub struct OctInteger<I>(PhantomData<fn(I) -> BigUint>)
-    where I: Stream<Item = char>;
-
-impl<I> Parser for OctInteger<I>
-    where I: Stream<Item = char>
-{
-    type Input = I;
-    type Output = BigUint;
-
-    fn parse_stream(&mut self, input: Self::Input) -> ParseResult<Self::Output, Self::Input> {
-        use combine::primitives::{Consumed, Error};
-
-        let position = input.position();
-        let (num_str, rest) = many1::<String, _>(oct_digit()).parse_stream(input)?;
-
-        match parse_str_radix(&num_str, 8) {
-            Ok(n) => Ok((n, rest)),
-            Err(s) => {
-                let err = ParseError::new(position, Error::Message(From::from(s)));
-                Err(Consumed::Consumed(err))
-            }
-        }
-    }
-}
-
-fn parse_str_radix(num_str: &str, radix: u32) -> Result<BigUint, String> {
-    match BigUint::from_str_radix(num_str, radix) {
-        Ok(n) => Ok(n),
-        Err(..) => Err(format!(
-            "Unable to parse {:?} as a base-{} integer",
-            num_str, radix)),
-    }
-}
-
-pub trait FromBigInt {
-    fn from_bigint(bigint: BigInt) -> Self;
-}
-
-macro_rules! from_big_int_impl {
-    ($uty:ident, $uconverter_mtd:ident) => {
-        impl FromBigInt for $uty {
-            fn from_bigint(bigint: BigInt) -> $uty {
-                use num::ToPrimitive;
-                bigint.$uconverter_mtd().unwrap_or_else(|| {
-                    panic!("Cannot convert {} to a {} using converter method {}",
-                           bigint, stringify!($uty), stringify!($uconverter_mtd));
-                })
-            }
-        }
-    };
-
-    ($sty:ident, $uty:ident, $sconverter_mtd:ident, $uconverter_mtd:ident) => {
-        impl FromBigInt for $sty {
-            fn from_bigint(bigint: BigInt) -> $sty {
-                use num::ToPrimitive;
-                use num::bigint::Sign::*;
-
-                if let Some(sval) = bigint.$sconverter_mtd() {
-                    // println!("(bigint) {:?}.{} = {:?} ({}?)",
-                    //          bigint, stringify!($sconverter_mtd),
-                    //          sval, stringify!($sty));
-                    return sval
-                }
-
-                if let Some(uval) = bigint.$uconverter_mtd() {
-                    let uptr: *const $uty = &uval;
-                    let sval = unsafe { *(uptr as *const $sty) };
-                    // println!("bigint = {:?} uval = {:?} sval = {:?}", bigint, uval, sval);
-                    return match bigint.sign() {
-                        Minus => -sval,
-                        _ => sval
-                    }
-                }
-
-                panic!("Cannot convert {} to a {} or via an unsafe cast through a {}",
-                       bigint, stringify!($sty), stringify!($uty));
-            }
-        }
-    };
-}
-
-from_big_int_impl!(u8,  to_u8);
-from_big_int_impl!(u16, to_u16);
-from_big_int_impl!(u32, to_u32);
-from_big_int_impl!(u64, to_u64);
-from_big_int_impl!(i8,  u8,  to_i8,  to_u8);
-from_big_int_impl!(i16, u16, to_i16, to_u16);
-from_big_int_impl!(i32, u32, to_i32, to_u32);
-from_big_int_impl!(i64, u64, to_i64, to_u64);
 */
 
 #[cfg(test)]
 mod tests {
-    /*
     macro_rules! test_uint_boundaries {
         ($bits:expr, $int_type:ident, $format_str:expr) => {
             let bits_m1: $int_type = $bits - 1;
@@ -300,36 +89,65 @@ mod tests {
             // println!("half     = {:?}", half_str);
             // println!("max      = {:?}", max_str);
 
-            assert_eq!(Ok((zero, "")), integer::<$int_type, _>().parse(zero_str.as_str()));
-            assert_eq!(Ok((half_m1, "")), integer::<$int_type, _>().parse(half_m1_str.as_str()));
-            assert_eq!(Ok((half, "")), integer::<$int_type, _>().parse(half_str.as_str()));
-            assert_eq!(Ok((max, "")), integer::<$int_type, _>().parse(max_str.as_str()));
-        }
+            assert_eq!(
+                Ok(("", zero)),
+                unsigned_integer::<$int_type>(zero_str.as_str())
+            );
+            assert_eq!(
+                Ok(("", half_m1)),
+                unsigned_integer::<$int_type>(half_m1_str.as_str())
+            );
+            assert_eq!(
+                Ok(("", half)),
+                unsigned_integer::<$int_type>(half_str.as_str())
+            );
+            assert_eq!(
+                Ok(("", max)),
+                unsigned_integer::<$int_type>(max_str.as_str())
+            );
+        };
     }
 
-    macro_rules! test_int_boundaries {
-        ($bits:expr, $int_type:ident, $format_str:expr) => {
-            let zero: $int_type = 0;
-            let max_pos: $int_type = $int_type::max_value();
-            let max_neg: $int_type = $int_type::min_value();
-            let minus_1: $int_type = zero - 1;
+    // macro_rules! test_int_boundaries {
+    //     ($bits:expr, $int_type:ident, $pos_format_str:expr, $neg_format_str: expr) => {
+    //         let zero: $int_type = 0;
+    //         let max_pos: $int_type = $int_type::max_value();
+    //         let max_neg: $int_type = $int_type::min_value();
+    //         let minus_1: $int_type = zero - 1;
 
-            let zero_str = format!($format_str, zero);
-            let max_pos_str = format!($format_str, max_pos);
-            let max_neg_str = format!($format_str, max_neg);
-            let minus_1_str = format!($format_str, minus_1);
+    //         let zero_str = format!($pos_format_str, zero);
+    //         let neg_zero_str = format!($neg_format_str, zero);
+    //         let max_pos_str = format!($pos_format_str, max_pos);
+    //         let max_neg_str = format!($neg_format_str, max_neg);
+    //         let minus_1_str = format!($neg_format_str, minus_1);
 
-            // println!("zero = {:?}", zero_str);
-            // println!("max+ = {:?}", max_pos_str);
-            // println!("max- = {:?}", max_neg_str);
-            // println!("-1   = {:?}", minus_1_str);
+    //         // println!("zero = {:?} ({})", zero_str, zero);
+    //         // println!("max+ = {:?} ({})", max_pos_str, max_pos);
+    //         // println!("max- = {:?} ({})", max_neg_str, max_neg);
+    //         // println!("-1   = {:?} ({})", minus_1_str, minus_1);
 
-            assert_eq!(Ok((zero, "")), integer::<$int_type, _>().parse(zero_str.as_str()));
-            assert_eq!(Ok((max_pos, "")), integer::<$int_type, _>().parse(max_pos_str.as_str()));
-            assert_eq!(Ok((max_neg, "")), integer::<$int_type, _>().parse(max_neg_str.as_str()));
-            assert_eq!(Ok((minus_1, "")), integer::<$int_type, _>().parse(minus_1_str.as_str()));
-        }
-    }
+    //         assert_eq!(
+    //             Ok(("", zero)),
+    //             signed_integer::<$int_type>(zero_str.as_str())
+    //         );
+    //         assert_eq!(
+    //             Ok(("", zero)),
+    //             signed_integer::<$int_type>(neg_zero_str.as_str())
+    //         );
+    //         assert_eq!(
+    //             Ok(("", max_pos)),
+    //             signed_integer::<$int_type>(max_pos_str.as_str())
+    //         );
+    //         assert_eq!(
+    //             Ok(("", max_neg)),
+    //             signed_integer::<$int_type>(max_neg_str.as_str())
+    //         );
+    //         assert_eq!(
+    //             Ok(("", minus_1)),
+    //             signed_integer::<$int_type>(minus_1_str.as_str())
+    //         );
+    //     };
+    // }
 
     macro_rules! test_int {
         ($mod_name:ident, $bits:expr, $uint_type:ident, $int_type:ident) => {
@@ -341,32 +159,32 @@ mod tests {
                     test_uint_boundaries!($bits, $uint_type, "0{:o}");
                 }
 
-                #[test]
-                fn parse_signed_from_octal() {
-                    test_int_boundaries!($bits, $int_type, "0{:o}");
-                }
+                // #[test]
+                // fn parse_signed_from_octal() {
+                //     test_int_boundaries!($bits, $int_type, "0{:o}", "-0{:o}");
+                // }
 
                 #[test]
                 fn parse_unsigned_from_decimal() {
                     test_uint_boundaries!($bits, $uint_type, "{}");
                 }
 
-                #[test]
-                fn parse_signed_from_decimal() {
-                    test_int_boundaries!($bits, $int_type, "{}");
-                }
+                // #[test]
+                // fn parse_signed_from_decimal() {
+                //     test_int_boundaries!($bits, $int_type, "{}", "-{}");
+                // }
 
                 #[test]
                 fn parse_unsigned_from_hex() {
                     test_uint_boundaries!($bits, $uint_type, "0x{:x}");
                 }
 
-                #[test]
-                fn parse_signed_from_hex() {
-                    test_int_boundaries!($bits, $int_type, "0x{:x}");
-                }
+                // #[test]
+                // fn parse_signed_from_hex() {
+                //     test_int_boundaries!($bits, $int_type, "0x{:x}", "-0x{:x}");
+                // }
             }
-        }
+        };
     }
 
     test_int!(byte_int, 8, u8, i8);
@@ -396,5 +214,4 @@ mod tests {
     //     let bytes = vec![ 0, 0, 0, 0, 0, 0, 0, 0 ];
     //     assert_eq!(Ok((bytes.clone(), "")), super::integer_bytes(&dt).parse("0"));
     // }
-    */
 }

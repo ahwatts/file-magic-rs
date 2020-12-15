@@ -1,5 +1,5 @@
-use crate::parser::offset::offset;
 use crate::magic::{MagicEntry, MagicSet};
+use crate::parser::offset::offset;
 use anyhow::{bail, Result};
 use nom::branch::alt;
 use nom::bytes::complete::tag;

@@ -1,9 +1,10 @@
 use crate::magic::{DirectOffset, Offset};
-use crate::parser::number::number;
 use nom::bytes::complete::tag;
 use nom::combinator::{map, opt};
 use nom::sequence::pair;
 use nom::IResult;
+
+use super::number::unsigned_integer;
 
 pub fn offset(input: &str) -> IResult<&str, Offset> {
     map(direct_offset, Offset::Direct)(input)
@@ -11,13 +12,11 @@ pub fn offset(input: &str) -> IResult<&str, Offset> {
 
 pub fn direct_offset(input: &str) -> IResult<&str, DirectOffset> {
     map(
-        pair(opt(tag("&")), number),
-        |(opt_amp, num)| {
-            match opt_amp {
-                Some(..) => DirectOffset::relative(num),
-                None => DirectOffset::absolute(num as u64),
-            }
-        }
+        pair(opt(tag("&")), unsigned_integer),
+        |(opt_amp, num)| match opt_amp {
+            Some(..) => DirectOffset::relative(num as i64),
+            None => DirectOffset::absolute(num),
+        },
     )(input)
 }
 
