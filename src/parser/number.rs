@@ -6,10 +6,10 @@ use nom::{
     sequence::preceded,
     IResult,
 };
-use num::{BigUint, Integer, Num, Unsigned};
+use num::{BigUint, Integer, Num};
 use std::convert::TryFrom;
 
-pub fn unsigned_integer<N: Integer + Unsigned + TryFrom<BigUint>>(input: &str) -> IResult<&str, N> {
+pub fn unsigned_integer<N: Integer + TryFrom<BigUint>>(input: &str) -> IResult<&str, N> {
     map_res(big_integer, N::try_from)(input)
 }
 
