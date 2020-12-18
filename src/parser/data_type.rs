@@ -1,131 +1,105 @@
-use combine::char::*;
-use combine::combinator::*;
-use combine::{ConsumedResult, ParseError, Parser, Stream};
-use crate::data_type;
-use std::io::{self, ErrorKind};
-use std::marker::PhantomData;
+// -*- rustic-indent-offset: 4; -*-
 
-/// Parses a data type descriptor.
-pub fn data_type<I: Stream<Item = char>>() -> DataType<I> {
-    DataType {
-        parser: many1::<String, _>(alpha_num()).and_then(translate_data_type_value),
-        marker: PhantomData,
-    }
-}
+use anyhow::anyhow;
+use nom::{character::complete::alphanumeric1, combinator::map_res, IResult};
 
-pub struct DataType<I: Stream<Item = char>> {
-    #[allow(clippy::type_complexity)]
-    parser: AndThen<Many1<String, AlphaNum<I>>, fn(String) -> io::Result<data_type::DataType>>,
-    marker: PhantomData<fn(I) -> I>
-}
+use crate::data_type::DataType;
 
-impl<I: Stream<Item = char>> Parser for DataType<I> {
-    type Input = I;
-    type Output = data_type::DataType;
+#[rustfmt::skip]
+pub fn data_type(input: &str) -> IResult<&str, DataType> {
+    map_res(alphanumeric1, |type_name| {
+        use crate::data_type::DataType::*;
+        use crate::endian::Endian::*;
 
-    #[inline]
-    fn parse_lazy(&mut self, input: Self::Input) -> ConsumedResult<Self::Output, Self::Input> {
-        self.parser.parse_lazy(input)
-    }
+        match type_name {
+            "byte"  => Ok(Byte  { signed: true }),
 
-    fn add_error(&mut self, errors: &mut ParseError<Self::Input>) {
-        self.parser.add_error(errors)
-    }
-}
+            "short"   => Ok(Short { endian: Native, signed: true }),
+            "beshort" => Ok(Short { endian: Big,    signed: true }),
+            "leshort" => Ok(Short { endian: Little, signed: true }),
 
-fn translate_data_type_value(val: String) -> io::Result<data_type::DataType> {
-    use crate::data_type::DataType::*;
-    use crate::endian::Endian::*;
+            "long"   => Ok(Long { endian: Native, signed: true }),
+            "belong" => Ok(Long { endian: Big,    signed: true }),
+            "lelong" => Ok(Long { endian: Little, signed: true }),
 
-    match val.as_ref() {
-        "byte"  => Ok(Byte  { signed: true }),
+            "quad"   => Ok(Quad { endian: Native, signed: true }),
+            "bequad" => Ok(Quad { endian: Big,    signed: true }),
+            "lequad" => Ok(Quad { endian: Little, signed: true }),
 
-        "short"   => Ok(Short { endian: Native, signed: true }),
-        "beshort" => Ok(Short { endian: Big,    signed: true }),
-        "leshort" => Ok(Short { endian: Little, signed: true }),
+            "ubyte"  => Ok(Byte  { signed: false }),
 
-        "long"   => Ok(Long { endian: Native, signed: true }),
-        "belong" => Ok(Long { endian: Big,    signed: true }),
-        "lelong" => Ok(Long { endian: Little, signed: true }),
+            "ushort"   => Ok(Short { endian: Native, signed: false }),
+            "ubeshort" => Ok(Short { endian: Big,    signed: false }),
+            "uleshort" => Ok(Short { endian: Little, signed: false }),
 
-        "quad"   => Ok(Quad { endian: Native, signed: true }),
-        "bequad" => Ok(Quad { endian: Big,    signed: true }),
-        "lequad" => Ok(Quad { endian: Little, signed: true }),
+            "ulong"   => Ok(Long { endian: Native, signed: false }),
+            "ubelong" => Ok(Long { endian: Big,    signed: false }),
+            "ulelong" => Ok(Long { endian: Little, signed: false }),
 
-        "ubyte"  => Ok(Byte  { signed: false }),
+            "uquad"   => Ok(Quad { endian: Native, signed: false }),
+            "ubequad" => Ok(Quad { endian: Big,    signed: false }),
+            "ulequad" => Ok(Quad { endian: Little, signed: false }),
 
-        "ushort"   => Ok(Short { endian: Native, signed: false }),
-        "ubeshort" => Ok(Short { endian: Big,    signed: false }),
-        "uleshort" => Ok(Short { endian: Little, signed: false }),
+            "float"   => Ok(Float(Native)),
+            "befloat" => Ok(Float(Big)),
+            "lefloat" => Ok(Float(Little)),
 
-        "ulong"   => Ok(Long { endian: Native, signed: false }),
-        "ubelong" => Ok(Long { endian: Big,    signed: false }),
-        "ulelong" => Ok(Long { endian: Little, signed: false }),
+            "double"   => Ok(Double(Native)),
+            "bedouble" => Ok(Double(Big)),
+            "ledouble" => Ok(Double(Little)),
 
-        "uquad"   => Ok(Quad { endian: Native, signed: false }),
-        "ubequad" => Ok(Quad { endian: Big,    signed: false }),
-        "ulequad" => Ok(Quad { endian: Little, signed: false }),
+            "string" => Ok(String),
 
-        "float"   => Ok(Float(Native)),
-        "befloat" => Ok(Float(Big)),
-        "lefloat" => Ok(Float(Little)),
+            "name" => Ok(Name("".to_string())),
+            "use"  => Ok(Use("".to_string())),
 
-        "double"   => Ok(Double(Native)),
-        "bedouble" => Ok(Double(Big)),
-        "ledouble" => Ok(Double(Little)),
-
-        "string" => Ok(String),
-
-        "name" => Ok(Name("".to_string())),
-        "use"  => Ok(Use("".to_string())),
-
-        _ => Err(io::Error::new(ErrorKind::Other, format!("Unknown data type: {:?}", val))),
-    }
+            _ => Err(anyhow!("Unknown data type: {:?}", type_name)),
+        }
+    })(input)
 }
 
 #[cfg(test)]
 mod tests {
-    use combine::Parser;
-
     #[test]
+    #[rustfmt::skip]
     fn data_type() {
         use crate::data_type::DataType::*;
         use crate::endian::Endian::*;
 
-        assert_eq!(Ok((Byte { signed: true  }, "")), super::data_type().parse("byte"));
+        assert_eq!(Ok(("", Byte { signed: true  })), super::data_type("byte"));
 
-        assert_eq!(Ok((Short { endian: Native, signed: true }, "")), super::data_type().parse("short"));
-        assert_eq!(Ok((Short { endian: Big,    signed: true }, "")), super::data_type().parse("beshort"));
-        assert_eq!(Ok((Short { endian: Little, signed: true }, "")), super::data_type().parse("leshort"));
+        assert_eq!(Ok(("", Short { endian: Native, signed: true })), super::data_type("short"));
+        assert_eq!(Ok(("", Short { endian: Big,    signed: true })), super::data_type("beshort"));
+        assert_eq!(Ok(("", Short { endian: Little, signed: true })), super::data_type("leshort"));
 
-        assert_eq!(Ok((Long { endian: Native, signed: true }, "")), super::data_type().parse("long"));
-        assert_eq!(Ok((Long { endian: Big,    signed: true }, "")), super::data_type().parse("belong"));
-        assert_eq!(Ok((Long { endian: Little, signed: true }, "")), super::data_type().parse("lelong"));
+        assert_eq!(Ok(("", Long { endian: Native, signed: true })), super::data_type("long"));
+        assert_eq!(Ok(("", Long { endian: Big,    signed: true })), super::data_type("belong"));
+        assert_eq!(Ok(("", Long { endian: Little, signed: true })), super::data_type("lelong"));
 
-        assert_eq!(Ok((Quad { endian: Native, signed: true }, "")), super::data_type().parse("quad"));
-        assert_eq!(Ok((Quad { endian: Big,    signed: true }, "")), super::data_type().parse("bequad"));
-        assert_eq!(Ok((Quad { endian: Little, signed: true }, "")), super::data_type().parse("lequad"));
+        assert_eq!(Ok(("", Quad { endian: Native, signed: true })), super::data_type("quad"));
+        assert_eq!(Ok(("", Quad { endian: Big,    signed: true })), super::data_type("bequad"));
+        assert_eq!(Ok(("", Quad { endian: Little, signed: true })), super::data_type("lequad"));
 
-        assert_eq!(Ok((Byte { signed: false }, "")), super::data_type().parse("ubyte"));
+        assert_eq!(Ok(("", Byte { signed: false })), super::data_type("ubyte"));
 
-        assert_eq!(Ok((Short { endian: Native, signed: false }, "")), super::data_type().parse("ushort"));
-        assert_eq!(Ok((Short { endian: Big,    signed: false }, "")), super::data_type().parse("ubeshort"));
-        assert_eq!(Ok((Short { endian: Little, signed: false }, "")), super::data_type().parse("uleshort"));
+        assert_eq!(Ok(("", Short { endian: Native, signed: false })), super::data_type("ushort"));
+        assert_eq!(Ok(("", Short { endian: Big,    signed: false })), super::data_type("ubeshort"));
+        assert_eq!(Ok(("", Short { endian: Little, signed: false })), super::data_type("uleshort"));
 
-        assert_eq!(Ok((Long { endian: Native, signed: false }, "")), super::data_type().parse("ulong"));
-        assert_eq!(Ok((Long { endian: Big,    signed: false }, "")), super::data_type().parse("ubelong"));
-        assert_eq!(Ok((Long { endian: Little, signed: false }, "")), super::data_type().parse("ulelong"));
+        assert_eq!(Ok(("", Long { endian: Native, signed: false })), super::data_type("ulong"));
+        assert_eq!(Ok(("", Long { endian: Big,    signed: false })), super::data_type("ubelong"));
+        assert_eq!(Ok(("", Long { endian: Little, signed: false })), super::data_type("ulelong"));
 
-        assert_eq!(Ok((Quad { endian: Native, signed: false }, "")), super::data_type().parse("uquad"));
-        assert_eq!(Ok((Quad { endian: Big,    signed: false }, "")), super::data_type().parse("ubequad"));
-        assert_eq!(Ok((Quad { endian: Little, signed: false }, "")), super::data_type().parse("ulequad"));
+        assert_eq!(Ok(("", Quad { endian: Native, signed: false })), super::data_type("uquad"));
+        assert_eq!(Ok(("", Quad { endian: Big,    signed: false })), super::data_type("ubequad"));
+        assert_eq!(Ok(("", Quad { endian: Little, signed: false })), super::data_type("ulequad"));
 
-        assert_eq!(Ok((Float(Native), "")), super::data_type().parse("float"));
-        assert_eq!(Ok((Float(Big),    "")), super::data_type().parse("befloat"));
-        assert_eq!(Ok((Float(Little), "")), super::data_type().parse("lefloat"));
+        assert_eq!(Ok(("", Float(Native))), super::data_type("float"));
+        assert_eq!(Ok(("", Float(Big))), super::data_type("befloat"));
+        assert_eq!(Ok(("", Float(Little))), super::data_type("lefloat"));
 
-        assert_eq!(Ok((Double(Native), "")), super::data_type().parse("double"));
-        assert_eq!(Ok((Double(Big),    "")), super::data_type().parse("bedouble"));
-        assert_eq!(Ok((Double(Little), "")), super::data_type().parse("ledouble"));
+        assert_eq!(Ok(("", Double(Native))), super::data_type("double"));
+        assert_eq!(Ok(("", Double(Big))), super::data_type("bedouble"));
+        assert_eq!(Ok(("", Double(Little))), super::data_type("ledouble"));
     }
 }

@@ -1,15 +1,18 @@
-use crate::magic::{MagicEntry, MagicSet};
-use crate::parser::offset::offset;
 use anyhow::{bail, Result};
-use nom::branch::alt;
-use nom::bytes::complete::tag;
-use nom::character::complete::{not_line_ending, space0};
-use nom::combinator::{eof, map, value};
-use nom::multi::many0_count;
-use nom::sequence::{pair, tuple};
-use nom::IResult;
+use nom::{
+    branch::alt,
+    bytes::complete::tag,
+    character::complete::{not_line_ending, space0, space1},
+    combinator::{eof, map, value},
+    multi::many0_count,
+    sequence::{pair, terminated, tuple},
+    IResult,
+};
 use std::io::{BufRead, BufReader, Read};
 
+use crate::magic::{MagicEntry, MagicSet, Test, TestType};
+
+mod data_type;
 mod number;
 mod offset;
 
@@ -64,8 +67,39 @@ fn line(input: &str) -> IResult<&str, Option<MagicEntry>> {
 }
 
 fn entry(input: &str) -> IResult<&str, MagicEntry> {
-    let (rest, _level) = many0_count(tag(">"))(input)?;
-    let (_rest, _offset) = offset(rest)?;
+    // use crate::data_type::DataType::*;
+
+    let (rest, level) = many0_count(tag(">"))(input)?;
+    let (rest, offset) = offset::offset(rest)?;
+    let (rest, _) = space1(rest)?;
+    let (rest, data_type) = data_type::data_type(rest)?;
+    let (_rest, _) = space1(rest)?;
+
+    match data_type {
+        // name_dt @ Name(..) => ???
+        // use_dt @ Use(..) => ???
+        _ => {
+            let (rest, test_type) = test_type(rest)?;
+            let (rest, _) = space1(rest)?;
+            let (rest, message) = terminated(not_line_ending, eof)(rest)?;
+
+            Ok((
+                rest,
+                MagicEntry {
+                    filename: String::new(),
+                    line_num: 0,
+                    level: level as u32,
+                    offset,
+                    test: Test::new(data_type, test_type),
+                    message: message.to_string(),
+                    mime_type: None,
+                },
+            ))
+        }
+    }
+}
+
+fn test_type(_input: &str) -> IResult<&str, TestType> {
     unimplemented!()
 }
 
@@ -169,9 +203,11 @@ fn test_type<I>(data_type: &data_type::DataType, opt_mask: Option<Vec<u8>>, inpu
 
 #[cfg(test)]
 mod tests {
-    // use crate::data_type::DataType;
-    // use crate::endian::Endian;
-    // use crate::magic::*;
+    use crate::{
+        data_type::DataType,
+        endian::Endian,
+        magic::{DirectOffset, MagicEntry, NumOp, NumericTest, Offset, Test, TestType},
+    };
 
     #[test]
     fn ignores_blank_lines() {
@@ -190,14 +226,6 @@ mod tests {
     }
 
     /*
-    #[test]
-    fn direct_offset() {
-        assert_eq!(Ok((Offset::Direct(DirectOffset::Absolute(108)), "")), super::offset("108"));
-        assert_eq!(Ok((Offset::Direct(DirectOffset::Absolute(108)), "")), super::offset("0x6c"));
-        assert_eq!(Ok((Offset::Direct(DirectOffset::Relative(-108)), "")), super::offset("&-108"));
-        assert_eq!(Ok((Offset::Direct(DirectOffset::Relative(108)), "")), super::offset("&0x6c"));
-    }
-
     #[test]
     fn data_type_with_mask() {
         assert_eq!(
@@ -253,6 +281,7 @@ mod tests {
             Ok((TestType::String(StringTest::new(StringOp::Equal, "fmt ")), "")),
             super::test_type(&dt, None, "fmt\\x20"));
     }
+    */
 
     #[test]
     fn parse_entry() {
@@ -262,16 +291,22 @@ mod tests {
             level: 0,
             offset: Offset::direct(DirectOffset::absolute(0)),
             test: Test::new(
-                DataType::Long { endian: Endian::Little, signed: true },
-                TestType::Number(NumericTest::new(NumOp::Equal, 263i32, None))),
+                DataType::Long {
+                    endian: Endian::Little,
+                    signed: true,
+                },
+                TestType::Number(NumericTest::new(NumOp::Equal, 263i32, None)),
+            ),
             message: "a.out little-endian 32-bit executable".to_string(),
             mime_type: None,
         };
-        assert_eq!(Ok((me, "")), super::entry(
-            "0	lelong		0407		a.out little-endian 32-bit executable"
-        ));
+        assert_eq!(
+            Ok(("", me)),
+            super::entry("0	lelong		0407		a.out little-endian 32-bit executable")
+        );
     }
 
+    /*
     #[test]
     fn parse_name_entry() {
         let me = MagicEntry {
