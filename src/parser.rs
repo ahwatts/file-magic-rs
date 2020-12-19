@@ -3,7 +3,7 @@ use nom::{
     branch::alt,
     bytes::complete::tag,
     character::complete::{not_line_ending, space0, space1},
-    combinator::{eof, map, value},
+    combinator::{eof, map, opt, peek, value},
     multi::many0_count,
     sequence::{pair, terminated, tuple},
     IResult,
@@ -15,6 +15,7 @@ use crate::magic::{MagicEntry, MagicSet, Test, TestType};
 mod data_type;
 mod number;
 mod offset;
+mod string;
 
 pub fn parse_set<R: Read>(filename: String, input: &mut R) -> Result<MagicSet> {
     let mut entries = Vec::new();
@@ -99,8 +100,26 @@ fn entry(input: &str) -> IResult<&str, MagicEntry> {
     }
 }
 
-fn test_type(_input: &str) -> IResult<&str, TestType> {
-    unimplemented!()
+fn test_type(input: &str) -> IResult<&str, TestType> {
+    alt((
+        value(TestType::AlwaysTrue, tuple((tag("x"), peek(space1)))),
+        map(
+            tuple((opt(string::string_operator), string::escaped_string)),
+            |(_opt_op, _string_val)| unimplemented!(),
+        ),
+    ))(input)
+
+    // if let ok_rslt @ Ok(..) = r#try(token('x').with(look_ahead(space())).map(|_| TestType::AlwaysTrue)).parse(input.clone()) {
+    //     return ok_rslt;
+    // }
+
+    // if data_type == &data_type::DataType::String {
+    //     let ((op, string), rest) = (optional(parsers::string_operator()), parsers::escaped_string::<String, _>()).parse(input)?;
+    //     Ok((TestType::String(StringTest::new(op.unwrap_or(StringOp::Equal), string)), rest))
+    // } else {
+    //     let ((op, num), rest) = (optional(parsers::numeric_operator()), parsers::integer_bytes(data_type)).parse(input)?;
+    //     Ok((TestType::Number(NumericTest::new_from_bytes(op.unwrap_or(NumOp::Equal), num, opt_mask)), rest))
+    // }
 }
 
 /*
@@ -168,12 +187,6 @@ fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
             ))
         }
     }
-}
-
-fn offset<I>(input: I) -> CombParseResult<I, Offset>
-    where I: Stream<Item = char>
-{
-    parsers::offset().parse(input)
 }
 
 fn data_type<I>(input: I) -> CombParseResult<I, (data_type::DataType, Option<Vec<u8>>)>
