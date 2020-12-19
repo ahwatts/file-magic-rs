@@ -10,7 +10,7 @@ use nom::{
 };
 use std::io::{BufRead, BufReader, Read};
 
-use crate::magic::{MagicEntry, MagicSet, Test, TestType};
+use crate::magic::{MagicEntry, MagicSet, StringOp, StringTest, Test, TestType};
 
 mod data_type;
 mod number;
@@ -105,7 +105,12 @@ fn test_type(input: &str) -> IResult<&str, TestType> {
         value(TestType::AlwaysTrue, tuple((tag("x"), peek(space1)))),
         map(
             tuple((opt(string::string_operator), string::escaped_string)),
-            |(_opt_op, _string_val)| unimplemented!(),
+            |(opt_op, string_val)| {
+                TestType::String(StringTest::new(
+                    opt_op.unwrap_or(StringOp::Equal),
+                    string_val,
+                ))
+            },
         ),
     ))(input)
 
@@ -216,11 +221,7 @@ fn test_type<I>(data_type: &data_type::DataType, opt_mask: Option<Vec<u8>>, inpu
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        data_type::DataType,
-        endian::Endian,
-        magic::{DirectOffset, MagicEntry, NumOp, NumericTest, Offset, Test, TestType},
-    };
+    use crate::{data_type::DataType, endian::Endian, magic::{DirectOffset, MagicEntry, NumOp, NumericTest, Offset, StringOp, StringTest, Test, TestType}};
 
     #[test]
     fn ignores_blank_lines() {
@@ -238,63 +239,53 @@ mod tests {
         assert_eq!(Ok(("", None)), super::line("  \t #\t"));
     }
 
-    /*
-    #[test]
-    fn data_type_with_mask() {
-        assert_eq!(
-            Ok(((DataType::Short { signed: true, endian: Endian::Little }, Some(vec![ 0xff, 0x3f ])), "")),
-            super::data_type("leshort&0x3fff")
-        );
-    }
-
     #[test]
     fn always_true_test_type() {
-        let dt = DataType::Byte { signed: false };
-        assert_eq!(Ok((TestType::AlwaysTrue, " ")), super::test_type(&dt, None, "x "));
+        // let dt = DataType::Byte { signed: false };
+        assert_eq!(Ok((" ", TestType::AlwaysTrue)), super::test_type("x "));
     }
 
     #[test]
     fn numeric_test_values() {
-        let dt = DataType::Byte { signed: false };
-        assert_eq!(Ok((TestType::AlwaysTrue, "\t")), super::test_type(&dt, None, "x\t"));
+        // let dt = DataType::Byte { signed: false };
+        assert_eq!(Ok(("\t", TestType::AlwaysTrue)), super::test_type("x\t"));
 
-        let dt = DataType::Long { endian: Endian::Native, signed: true };
+        // let dt = DataType::Long { endian: Endian::Native, signed: true };
         assert_eq!(
-            Ok((TestType::Number(NumericTest::new(NumOp::Equal, 305i32, None)), "")),
-            super::test_type(&dt, None, "305"));
+            Ok(("", TestType::Number(NumericTest::new(NumOp::Equal, 305i32, None)))),
+            super::test_type("305"));
 
-        let dt = DataType::Quad { endian: Endian::Little, signed: true };
+        // let dt = DataType::Quad { endian: Endian::Little, signed: true };
         assert_eq!(
-            Ok((TestType::Number(NumericTest::new(NumOp::Equal, -305i64, None)), "")),
-            super::test_type(&dt, None, "=-305"));
+            Ok(("", TestType::Number(NumericTest::new(NumOp::Equal, -305i64, None)))),
+            super::test_type("=-305"));
 
-        let dt = DataType::Short { endian: Endian::Big, signed: false };
+        // let dt = DataType::Short { endian: Endian::Big, signed: false };
         assert_eq!(
-            Ok((TestType::Number(NumericTest::new(NumOp::GreaterThan, 48_879u16, None)), "")),
-            super::test_type(&dt, None, ">0xBeef"));
+            Ok(("", TestType::Number(NumericTest::new(NumOp::GreaterThan, 48_879u16, None)))),
+            super::test_type(">0xBeef"));
 
-        let dt = DataType::Long { endian: Endian::Native, signed: false };
+        // let dt = DataType::Long { endian: Endian::Native, signed: false };
         assert_eq!(
-            Ok((TestType::Number(NumericTest::new(NumOp::Equal, 263u32, None)), "")),
-            super::test_type(&dt, None, "0407"));
+            Ok(("", TestType::Number(NumericTest::new(NumOp::Equal, 263u32, None)))),
+            super::test_type("0407"));
     }
 
-    #[test]
-    fn numeric_test_value_with_mask() {
-        let dt = DataType::Long { endian: Endian::Native, signed: true };
-        assert_eq!(
-            Ok((TestType::Number(NumericTest::new(NumOp::Equal, 305i32, Some(vec![ 0xff, 0xff, 0xff, 0xff ]))), "")),
-            super::test_type(&dt, Some(vec![ 0xff, 0xff, 0xff, 0xff ]), "305"));
-    }
+    // #[test]
+    // fn numeric_test_value_with_mask() {
+    //     let dt = DataType::Long { endian: Endian::Native, signed: true };
+    //     assert_eq!(
+    //         Ok(("", TestType::Number(NumericTest::new(NumOp::Equal, 305i32, Some(vec![ 0xff, 0xff, 0xff, 0xff ]))))),
+    //         super::test_type(&dt, Some(vec![ 0xff, 0xff, 0xff, 0xff ]), "305"));
+    // }
 
     #[test]
     fn string_test_values() {
-        let dt = DataType::String;
+        // let dt = DataType::String;
         assert_eq!(
-            Ok((TestType::String(StringTest::new(StringOp::Equal, "fmt ")), "")),
-            super::test_type(&dt, None, "fmt\\x20"));
+            Ok(("", TestType::String(StringTest::new(StringOp::Equal, "fmt ")))),
+            super::test_type("fmt\\x20"));
     }
-    */
 
     #[test]
     fn parse_entry() {
@@ -319,7 +310,6 @@ mod tests {
         );
     }
 
-    /*
     #[test]
     fn parse_name_entry() {
         let me = MagicEntry {
@@ -333,9 +323,8 @@ mod tests {
             message: "".to_string(),
             mime_type: None,
         };
-        assert_eq!(Ok((me, "")), super::entry(
+        assert_eq!(Ok(("", me)), super::entry(
             "0	name	riff-walk"
         ));
     }
-    */
 }

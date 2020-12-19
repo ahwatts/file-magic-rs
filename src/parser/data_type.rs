@@ -102,4 +102,14 @@ mod tests {
         assert_eq!(Ok(("", Double(Big))), super::data_type("bedouble"));
         assert_eq!(Ok(("", Double(Little))), super::data_type("ledouble"));
     }
+
+    // #[test]
+    // fn data_type_with_mask() {
+    //     use crate::data_type::DataType::*;
+    //     use crate::endian::Endian::*;
+    //     assert_eq!(
+    //         Ok(("", (Short { signed: true, endian: Little }, Some(vec![ 0xff, 0x3f ])))),
+    //         super::data_type("leshort&0x3fff"),
+    //     );
+    // }
 }

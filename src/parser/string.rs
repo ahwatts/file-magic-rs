@@ -2,8 +2,9 @@ use anyhow::anyhow;
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    character::complete::{hex_digit1, oct_digit1, one_of},
+    character::complete::{hex_digit1, oct_digit1, one_of, satisfy},
     combinator::map_res,
+    multi::fold_many0,
     sequence::preceded,
     IResult,
 };
@@ -75,41 +76,18 @@ pub fn escape_sequence(input: &str) -> IResult<&str, char> {
     )(input)
 }
 
-pub fn escaped_string(_input: &str) -> IResult<&str, String> {
-    unimplemented!()
+pub fn escaped_string(input: &str) -> IResult<&str, String> {
+    fold_many0(
+        alt((escape_sequence, satisfy(|c| c != ' ' && c != '\t'))),
+        // Use input.len() as a rough guess for how long the resulting string
+        // should be, to hopefully avoid doing too many allocations.
+        String::with_capacity(input.len()),
+        |mut string, c| {
+            string.push(c);
+            string
+        },
+    )(input)
 }
-
-/*
-pub fn escaped_string<F, I>() -> EscapedString<F, I>
-where
-    I: Stream<Item = char>,
-    F: FromIterator<char>,
-{
-    EscapedString(many::<F, _>(or(escape_sequence(), none_of(" ".chars()))))
-}
-
-pub struct EscapedString<F, I>(Many<F, Or<EscapeSequence<I>, NoneOf<Chars<'static>, I>>>)
-where
-    I: Stream<Item = char>,
-    F: FromIterator<char>;
-
-impl<F, I> Parser for EscapedString<F, I>
-where
-    I: Stream<Item = char>,
-    F: FromIterator<char>,
-{
-    type Input = I;
-    type Output = F;
-
-    fn parse_lazy(&mut self, input: Self::Input) -> ConsumedResult<Self::Output, Self::Input> {
-        self.0.parse_lazy(input)
-    }
-
-    fn add_error(&mut self, errors: &mut ParseError<Self::Input>) {
-        self.0.add_error(errors)
-    }
-}
-*/
 
 #[cfg(test)]
 mod tests {
@@ -119,6 +97,11 @@ mod tests {
             Ok(("", "fmt ".to_string())),
             super::escaped_string("fmt\\x20"),
         );
+
+        assert_eq!(
+            Ok((" ", "entry\r".to_string())),
+            super::escaped_string("entry\\r "),
+        )
     }
 
     #[test]
