@@ -9,29 +9,6 @@ use nom::{
     IResult,
 };
 
-use crate::magic::{NumOp, StringOp};
-
-pub fn numeric_operator(input: &str) -> IResult<&str, NumOp> {
-    use crate::magic::NumOp::*;
-    map_res(one_of("=<>!"), |op_char| match op_char {
-        '=' => Ok(Equal),
-        '<' => Ok(LessThan),
-        '>' => Ok(GreaterThan),
-        '!' => Ok(NotEqual),
-        _ => Err(anyhow!("Unknown numeric operator: {:?}", op_char)),
-    })(input)
-}
-
-pub fn string_operator(input: &str) -> IResult<&str, StringOp> {
-    use crate::magic::StringOp::*;
-    map_res(one_of("=<>"), |op_char| match op_char {
-        '=' => Ok(Equal),
-        '<' => Ok(LexBefore),
-        '>' => Ok(LexAfter),
-        _ => Err(anyhow!("Unknown string operator: {:?}", op_char)),
-    })(input)
-}
-
 pub fn escape_sequence(input: &str) -> IResult<&str, char> {
     preceded(
         tag("\\"),
@@ -102,23 +79,6 @@ mod tests {
             Ok((" ", "entry\r".to_string())),
             super::escaped_string("entry\\r "),
         )
-    }
-
-    #[test]
-    fn numerical_operators() {
-        use crate::magic::NumOp::*;
-        assert_eq!(Ok(("", Equal)), super::numeric_operator("="));
-        assert_eq!(Ok(("", GreaterThan)), super::numeric_operator(">"));
-        assert_eq!(Ok(("", LessThan)), super::numeric_operator("<"));
-        assert_eq!(Ok(("", NotEqual)), super::numeric_operator("!"));
-    }
-
-    #[test]
-    fn string_operators() {
-        use crate::magic::StringOp::*;
-        assert_eq!(Ok(("", Equal)), super::string_operator("="));
-        assert_eq!(Ok(("", LexBefore)), super::string_operator("<"));
-        assert_eq!(Ok(("", LexAfter)), super::string_operator(">"));
     }
 
     #[test]

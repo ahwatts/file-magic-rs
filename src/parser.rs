@@ -16,6 +16,7 @@ mod data_type;
 mod number;
 mod offset;
 mod string;
+mod test;
 
 pub fn parse_set<R: Read>(filename: String, input: &mut R) -> Result<MagicSet> {
     let mut entries = Vec::new();
@@ -104,7 +105,7 @@ fn test_type(input: &str) -> IResult<&str, TestType> {
     alt((
         value(TestType::AlwaysTrue, tuple((tag("x"), peek(space1)))),
         map(
-            tuple((opt(string::string_operator), string::escaped_string)),
+            tuple((opt(test::string_operator), string::escaped_string)),
             |(opt_op, string_val)| {
                 TestType::String(StringTest::new(
                     opt_op.unwrap_or(StringOp::Equal),
@@ -221,7 +222,14 @@ fn test_type<I>(data_type: &data_type::DataType, opt_mask: Option<Vec<u8>>, inpu
 
 #[cfg(test)]
 mod tests {
-    use crate::{data_type::DataType, endian::Endian, magic::{DirectOffset, MagicEntry, NumOp, NumericTest, Offset, StringOp, StringTest, Test, TestType}};
+    use crate::{
+        data_type::DataType,
+        endian::Endian,
+        magic::{
+            DirectOffset, MagicEntry, NumOp, NumericTest, Offset, StringOp, StringTest, Test,
+            TestType,
+        },
+    };
 
     #[test]
     fn ignores_blank_lines() {
@@ -252,23 +260,39 @@ mod tests {
 
         // let dt = DataType::Long { endian: Endian::Native, signed: true };
         assert_eq!(
-            Ok(("", TestType::Number(NumericTest::new(NumOp::Equal, 305i32, None)))),
-            super::test_type("305"));
+            Ok((
+                "",
+                TestType::Number(NumericTest::new(NumOp::Equal, 305i32, None))
+            )),
+            super::test_type("305")
+        );
 
         // let dt = DataType::Quad { endian: Endian::Little, signed: true };
         assert_eq!(
-            Ok(("", TestType::Number(NumericTest::new(NumOp::Equal, -305i64, None)))),
-            super::test_type("=-305"));
+            Ok((
+                "",
+                TestType::Number(NumericTest::new(NumOp::Equal, -305i64, None))
+            )),
+            super::test_type("=-305")
+        );
 
         // let dt = DataType::Short { endian: Endian::Big, signed: false };
         assert_eq!(
-            Ok(("", TestType::Number(NumericTest::new(NumOp::GreaterThan, 48_879u16, None)))),
-            super::test_type(">0xBeef"));
+            Ok((
+                "",
+                TestType::Number(NumericTest::new(NumOp::GreaterThan, 48_879u16, None))
+            )),
+            super::test_type(">0xBeef")
+        );
 
         // let dt = DataType::Long { endian: Endian::Native, signed: false };
         assert_eq!(
-            Ok(("", TestType::Number(NumericTest::new(NumOp::Equal, 263u32, None)))),
-            super::test_type("0407"));
+            Ok((
+                "",
+                TestType::Number(NumericTest::new(NumOp::Equal, 263u32, None))
+            )),
+            super::test_type("0407")
+        );
     }
 
     // #[test]
@@ -283,8 +307,12 @@ mod tests {
     fn string_test_values() {
         // let dt = DataType::String;
         assert_eq!(
-            Ok(("", TestType::String(StringTest::new(StringOp::Equal, "fmt ")))),
-            super::test_type("fmt\\x20"));
+            Ok((
+                "",
+                TestType::String(StringTest::new(StringOp::Equal, "fmt "))
+            )),
+            super::test_type("fmt\\x20")
+        );
     }
 
     #[test]
@@ -319,12 +347,11 @@ mod tests {
             offset: Offset::direct(DirectOffset::absolute(0)),
             test: Test::new(
                 DataType::Name("riff-walk".to_string()),
-                TestType::AlwaysTrue),
+                TestType::AlwaysTrue,
+            ),
             message: "".to_string(),
             mime_type: None,
         };
-        assert_eq!(Ok(("", me)), super::entry(
-            "0	name	riff-walk"
-        ));
+        assert_eq!(Ok(("", me)), super::entry("0	name	riff-walk"));
     }
 }
