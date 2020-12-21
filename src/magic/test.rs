@@ -35,7 +35,7 @@ impl Test {
     pub fn matches<R: Read>(&self, file: &mut R) -> Result<bool> {
         match self.test_type {
             TestType::AlwaysTrue => Ok(true),
-            TestType::Number(num_test) => num_test.matches_file(&self.data_type, file),
+            TestType::Number(ref num_test) => num_test.matches_file(&self.data_type, file),
             TestType::String(..) => unimplemented!(),
             TestType::UseList(..) => unimplemented!(),
         }

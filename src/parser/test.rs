@@ -1,5 +1,12 @@
 use anyhow::anyhow;
-use nom::{IResult, branch::alt, bytes::complete::tag, character::complete::{one_of, space1}, combinator::{map, map_res, opt, peek, value}, error::ParseError, sequence::{pair, tuple}};
+use nom::{
+    branch::alt,
+    bytes::complete::tag,
+    character::complete::{one_of, space1},
+    combinator::{map, map_res, opt, peek, value},
+    sequence::{pair, tuple},
+    IResult,
+};
 
 use crate::{
     data_type::DataType,
@@ -7,12 +14,11 @@ use crate::{
     parser::{number::unsigned_integer, string::escaped_string},
 };
 
-pub fn test<I, E>(
+pub fn test<'a, I, E>(
     data_type: &DataType,
     opt_mask: Option<Vec<u8>>,
-    input: &str,
-) -> IResult<&str, TestType>
-{
+    input: &'a str,
+) -> IResult<&'a str, TestType> {
     if *data_type == DataType::String {
         alt((
             value(TestType::AlwaysTrue, tuple((tag("x"), peek(space1)))),
@@ -30,12 +36,12 @@ pub fn test<I, E>(
         alt((
             value(TestType::AlwaysTrue, tuple((tag("x"), peek(space1)))),
             map(
-                pair(opt(numeric_operator), unsigned_integer),
+                pair(opt(numeric_operator), unsigned_integer::<u32>),
                 |(opt_op, num_val)| {
                     TestType::Number(NumericTest::new(
                         opt_op.unwrap_or(NumOp::Equal),
                         num_val,
-                        opt_mask,
+                        opt_mask.clone(),
                     ))
                 },
             ),
