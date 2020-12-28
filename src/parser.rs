@@ -3,14 +3,14 @@ use nom::{
     branch::alt,
     bytes::complete::tag,
     character::complete::{not_line_ending, space0, space1},
-    combinator::{eof, map, opt, peek, value},
+    combinator::{eof, map, value},
     multi::many0_count,
     sequence::{pair, terminated, tuple},
     IResult,
 };
 use std::io::{BufRead, BufReader, Read};
 
-use crate::magic::{MagicEntry, MagicSet, StringOp, StringTest, Test, TestType};
+use crate::magic::{MagicEntry, MagicSet, Test};
 
 mod data_type;
 mod number;
@@ -81,7 +81,7 @@ fn entry(input: &str) -> IResult<&str, MagicEntry> {
         // name_dt @ Name(..) => ???
         // use_dt @ Use(..) => ???
         _ => {
-            let (rest, test_type) = test_type(rest)?;
+            let (rest, test_type) = test::test(&data_type, None, rest)?;
             let (rest, _) = space1(rest)?;
             let (rest, message) = terminated(not_line_ending, eof)(rest)?;
 
@@ -101,32 +101,32 @@ fn entry(input: &str) -> IResult<&str, MagicEntry> {
     }
 }
 
-fn test_type(input: &str) -> IResult<&str, TestType> {
-    alt((
-        value(TestType::AlwaysTrue, tuple((tag("x"), peek(space1)))),
-        map(
-            tuple((opt(test::string_operator), string::escaped_string)),
-            |(opt_op, string_val)| {
-                TestType::String(StringTest::new(
-                    opt_op.unwrap_or(StringOp::Equal),
-                    string_val,
-                ))
-            },
-        ),
-    ))(input)
+// fn test_type(input: &str) -> IResult<&str, TestType> {
+//     alt((
+//         value(TestType::AlwaysTrue, tuple((tag("x"), peek(space1)))),
+//         map(
+//             tuple((opt(test::string_operator), string::escaped_string)),
+//             |(opt_op, string_val)| {
+//                 TestType::String(StringTest::new(
+//                     opt_op.unwrap_or(StringOp::Equal),
+//                     string_val,
+//                 ))
+//             },
+//         ),
+//     ))(input)
 
-    // if let ok_rslt @ Ok(..) = r#try(token('x').with(look_ahead(space())).map(|_| TestType::AlwaysTrue)).parse(input.clone()) {
-    //     return ok_rslt;
-    // }
+//     // if let ok_rslt @ Ok(..) = r#try(token('x').with(look_ahead(space())).map(|_| TestType::AlwaysTrue)).parse(input.clone()) {
+//     //     return ok_rslt;
+//     // }
 
-    // if data_type == &data_type::DataType::String {
-    //     let ((op, string), rest) = (optional(parsers::string_operator()), parsers::escaped_string::<String, _>()).parse(input)?;
-    //     Ok((TestType::String(StringTest::new(op.unwrap_or(StringOp::Equal), string)), rest))
-    // } else {
-    //     let ((op, num), rest) = (optional(parsers::numeric_operator()), parsers::integer_bytes(data_type)).parse(input)?;
-    //     Ok((TestType::Number(NumericTest::new_from_bytes(op.unwrap_or(NumOp::Equal), num, opt_mask)), rest))
-    // }
-}
+//     // if data_type == &data_type::DataType::String {
+//     //     let ((op, string), rest) = (optional(parsers::string_operator()), parsers::escaped_string::<String, _>()).parse(input)?;
+//     //     Ok((TestType::String(StringTest::new(op.unwrap_or(StringOp::Equal), string)), rest))
+//     // } else {
+//     //     let ((op, num), rest) = (optional(parsers::numeric_operator()), parsers::integer_bytes(data_type)).parse(input)?;
+//     //     Ok((TestType::Number(NumericTest::new_from_bytes(op.unwrap_or(NumOp::Equal), num, opt_mask)), rest))
+//     // }
+// }
 
 /*
 fn entry<I>(line: I) -> CombParseResult<I, MagicEntry>
@@ -225,10 +225,7 @@ mod tests {
     use crate::{
         data_type::DataType,
         endian::Endian,
-        magic::{
-            DirectOffset, MagicEntry, NumOp, NumericTest, Offset, StringOp, StringTest, Test,
-            TestType,
-        },
+        magic::{DirectOffset, MagicEntry, NumOp, NumericTest, Offset, Test, TestType},
     };
 
     #[test]
@@ -245,74 +242,6 @@ mod tests {
         assert_eq!(Ok(("", None)), super::line("# Comment"));
         assert_eq!(Ok(("", None)), super::line("   # Comment"));
         assert_eq!(Ok(("", None)), super::line("  \t #\t"));
-    }
-
-    #[test]
-    fn always_true_test_type() {
-        // let dt = DataType::Byte { signed: false };
-        assert_eq!(Ok((" ", TestType::AlwaysTrue)), super::test_type("x "));
-    }
-
-    #[test]
-    fn numeric_test_values() {
-        // let dt = DataType::Byte { signed: false };
-        assert_eq!(Ok(("\t", TestType::AlwaysTrue)), super::test_type("x\t"));
-
-        // let dt = DataType::Long { endian: Endian::Native, signed: true };
-        assert_eq!(
-            Ok((
-                "",
-                TestType::Number(NumericTest::new(NumOp::Equal, 305i32, None))
-            )),
-            super::test_type("305")
-        );
-
-        // let dt = DataType::Quad { endian: Endian::Little, signed: true };
-        assert_eq!(
-            Ok((
-                "",
-                TestType::Number(NumericTest::new(NumOp::Equal, -305i64, None))
-            )),
-            super::test_type("=-305")
-        );
-
-        // let dt = DataType::Short { endian: Endian::Big, signed: false };
-        assert_eq!(
-            Ok((
-                "",
-                TestType::Number(NumericTest::new(NumOp::GreaterThan, 48_879u16, None))
-            )),
-            super::test_type(">0xBeef")
-        );
-
-        // let dt = DataType::Long { endian: Endian::Native, signed: false };
-        assert_eq!(
-            Ok((
-                "",
-                TestType::Number(NumericTest::new(NumOp::Equal, 263u32, None))
-            )),
-            super::test_type("0407")
-        );
-    }
-
-    // #[test]
-    // fn numeric_test_value_with_mask() {
-    //     let dt = DataType::Long { endian: Endian::Native, signed: true };
-    //     assert_eq!(
-    //         Ok(("", TestType::Number(NumericTest::new(NumOp::Equal, 305i32, Some(vec![ 0xff, 0xff, 0xff, 0xff ]))))),
-    //         super::test_type(&dt, Some(vec![ 0xff, 0xff, 0xff, 0xff ]), "305"));
-    // }
-
-    #[test]
-    fn string_test_values() {
-        // let dt = DataType::String;
-        assert_eq!(
-            Ok((
-                "",
-                TestType::String(StringTest::new(StringOp::Equal, "fmt "))
-            )),
-            super::test_type("fmt\\x20")
-        );
     }
 
     #[test]
