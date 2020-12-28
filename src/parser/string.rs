@@ -32,7 +32,7 @@ pub fn escape_sequence(input: &str) -> IResult<&str, char> {
                     })
                     .and_then(|n| {
                         std::char::from_u32(n)
-                            .ok_or(anyhow!("Incorrect unicode scalar value: {:?}", n))
+                            .ok_or_else(|| anyhow!("Incorrect unicode scalar value: {:?}", n))
                     })
             }),
             map_res(oct_digit1, |oct_str| {
@@ -46,7 +46,7 @@ pub fn escape_sequence(input: &str) -> IResult<&str, char> {
                     })
                     .and_then(|n| {
                         std::char::from_u32(n)
-                            .ok_or(anyhow!("Incorrect unicode scalar value: {:?}", n))
+                            .ok_or_else(|| anyhow!("Incorrect unicode scalar value: {:?}", n))
                     })
             }),
         )),
