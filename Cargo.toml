@@ -16,7 +16,7 @@ path = "src/bin/file.rs"
 anyhow = "^1.0.35"
 byteorder = "^1.0.0"
 nom = "^6.0.1"
-num = "^0.3.1"
+num = "^0.4.0"
 rmp = "^0.8.9"
 rmp-serde = "^0.15.0"
 serde = { version = "^1.0.118", features = ["derive"] }

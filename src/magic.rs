@@ -145,8 +145,7 @@ impl MagicList {
         let root_match = self.root.matches(file)?;
         match root_match {
             Matches(root_message) => {
-                let mut message = Vec::new();
-                message.push(root_message);
+                let mut message = vec![root_message];
                 for entry in self.children.iter() {
                     if let Matches(child_message) = entry.matches(file)? {
                         message.push(child_message);
