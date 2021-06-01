@@ -12,46 +12,58 @@ pub fn data_type(input: &str) -> IResult<&str, DataType> {
         use crate::endian::Endian::*;
 
         match type_name {
-            "byte"  => Ok(Byte  { signed: true }),
+            "byte"   | "dC" | "d1" => Ok(Byte  { signed: true }),
+            "ubyte"  | "uC" | "u1" => Ok(Byte  { signed: false }),
+            "short"  | "dS" | "d2" => Ok(Short { endian: Native, signed: true }),
+            "ushort" | "uS" | "u2" => Ok(Short { endian: Native, signed: false }),
+            "long"   | "dI" | "dL" | "d4" => Ok(Long { endian: Native, signed: true }),
+            "ulong"  | "uI" | "uL" | "u4" => Ok(Long { endian: Native, signed: false }),
+            "quad"   | "dQ" => Ok(Quad { endian: Native, signed: true }),
+            "uquad"  | "uQ" => Ok(Quad { endian: Native, signed: false }),
+            "float"  => Ok(Float(Native)),
+            "double" => Ok(Double(Native)),
 
-            "short"   => Ok(Short { endian: Native, signed: true }),
-            "beshort" => Ok(Short { endian: Big,    signed: true }),
-            "leshort" => Ok(Short { endian: Little, signed: true }),
-
-            "long"   => Ok(Long { endian: Native, signed: true }),
-            "belong" => Ok(Long { endian: Big,    signed: true }),
-            "lelong" => Ok(Long { endian: Little, signed: true }),
-
-            "quad"   => Ok(Quad { endian: Native, signed: true }),
-            "bequad" => Ok(Quad { endian: Big,    signed: true }),
-            "lequad" => Ok(Quad { endian: Little, signed: true }),
-
-            "ubyte"  => Ok(Byte  { signed: false }),
-
-            "ushort"   => Ok(Short { endian: Native, signed: false }),
-            "ubeshort" => Ok(Short { endian: Big,    signed: false }),
-            "uleshort" => Ok(Short { endian: Little, signed: false }),
-
-            "ulong"   => Ok(Long { endian: Native, signed: false }),
-            "ubelong" => Ok(Long { endian: Big,    signed: false }),
-            "ulelong" => Ok(Long { endian: Little, signed: false }),
-
-            "uquad"   => Ok(Quad { endian: Native, signed: false }),
-            "ubequad" => Ok(Quad { endian: Big,    signed: false }),
-            "ulequad" => Ok(Quad { endian: Little, signed: false }),
-
-            "float"   => Ok(Float(Native)),
-            "befloat" => Ok(Float(Big)),
-            "lefloat" => Ok(Float(Little)),
-
-            "double"   => Ok(Double(Native)),
+            "beshort"  => Ok(Short { endian: Big, signed: true }),
+            "ubeshort" => Ok(Short { endian: Big, signed: false }),
+            "belong"   => Ok(Long  { endian: Big, signed: true }),
+            "ubelong"  => Ok(Long  { endian: Big, signed: false }),
+            "bequad"   => Ok(Quad  { endian: Big, signed: true }),
+            "ubequad"  => Ok(Quad  { endian: Big, signed: false }),
+            "befloat"  => Ok(Float(Big)),
             "bedouble" => Ok(Double(Big)),
+
+            "leshort"  => Ok(Short { endian: Little, signed: true }),
+            "uleshort" => Ok(Short { endian: Little, signed: false }),
+            "lelong"   => Ok(Long  { endian: Little, signed: true }),
+            "ulelong"  => Ok(Long  { endian: Little, signed: false }),
+            "lequad"   => Ok(Quad  { endian: Little, signed: true }),
+            "ulequad"  => Ok(Quad  { endian: Little, signed: false }),
+            "lefloat"  => Ok(Float(Little)),
             "ledouble" => Ok(Double(Little)),
 
-            "string" => Ok(String),
+            "melong" | "medate" | "meldate" => Err(anyhow!("PDP-11 middle-endian values not supported")),
+
+            "string" | "s" => Ok(String),
+            "pstring" => Err(anyhow!("Pascal strings not supported (yet)")),
+            "bestring16" | "lestring16" => Err(anyhow!("UCS16 strings not supported (yet)")),
+
+            "date" | "qdate" | "ldate" | "qldate" | "qwdate" |
+            "bedate" | "beqdate" | "beldate" | "beqldate" | "beqwdate" |
+            "ledate" | "leqdate" | "leldate" | "leqldate" | "leqwdate"
+                => Err(anyhow!("Date values not supported (yet)")),
+
+            "beid3" | "leid3" => Err(anyhow!("ID3 values not supported (yet)")),
+            "indirect" | "indirect/r" => Err(anyhow!("Indirect magic not supported (yet)")),
 
             "name" => Ok(Name("".to_string())),
             "use"  => Ok(Use("".to_string())),
+
+            "regex" => Err(anyhow!("Regex tests not supported (yet)")),
+            "search" => Err(anyhow!("Literal search strings not supported (yet)")),
+            "default" | "clear" => Err(anyhow!("Default no-type tests not supported (yet)")),
+            "der" => Err(anyhow!("DER certificate parsing not supported (yet)")),
+            "guid" => Err(anyhow!("GUID tests not supported (yet)")),
+            "offset" => Err(anyhow!("Offset tests are not supported (yet)")),
 
             _ => Err(anyhow!("Unknown data type: {:?}", type_name)),
         }

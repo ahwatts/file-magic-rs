@@ -75,7 +75,7 @@ fn entry(input: &str) -> IResult<&str, MagicEntry> {
     let (rest, offset) = offset::offset(rest)?;
     let (rest, _) = space1(rest)?;
     let (rest, data_type) = data_type::data_type(rest)?;
-    let (_rest, _) = space1(rest)?;
+    let (rest, _) = space1(rest)?;
 
     match data_type {
         // name_dt @ Name(..) => ???
