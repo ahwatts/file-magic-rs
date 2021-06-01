@@ -1,12 +1,72 @@
 // -*- rustic-indent-offset: 4; -*-
 
 use anyhow::anyhow;
-use nom::{character::complete::alphanumeric1, combinator::map_res, IResult};
+use nom::{
+    character::complete::{alphanumeric1, one_of},
+    combinator::{map, map_res, opt},
+    error::FromExternalError,
+    sequence::tuple,
+    IResult,
+};
 
 use crate::data_type::DataType;
 
-#[rustfmt::skip]
+use super::number::big_integer;
+
 pub fn data_type(input: &str) -> IResult<&str, DataType> {
+    use crate::data_type::DataType::*;
+
+    let (rest, dtype) = data_type_name(input)?;
+
+    // Parse (but return an error, for now) the optional op-and operand that can
+    // follow numeric types.
+    match dtype {
+        Byte { .. } | Short { .. } | Long { .. } | Quad { .. } => {
+            let (_rest2, op_and_operand) = opt(tuple((data_type_op, big_integer)))(rest)?;
+            if op_and_operand.is_some() {
+                Err(nom::Err::Failure(nom::error::Error::from_external_error(
+                    rest,
+                    nom::error::ErrorKind::OneOf,
+                    anyhow!(
+                        "Numeric types with masks (and other operators) are not supported (yet)"
+                    ),
+                )))
+            } else {
+                Ok((rest, dtype))
+            }
+        }
+        _ => Ok((rest, dtype)),
+    }
+}
+
+pub enum DataTypeOp {
+    AndMask,
+    OrMask,
+    XorMask,
+    Plus,
+    Minus,
+    Times,
+    Divide,
+    Mod,
+}
+
+fn data_type_op(input: &str) -> IResult<&str, DataTypeOp> {
+    use DataTypeOp::*;
+    map(one_of("&|^+-*/%"), |c| match c {
+        '&' => AndMask,
+        '|' => OrMask,
+        '^' => XorMask,
+        '+' => Plus,
+        '-' => Minus,
+        '*' => Times,
+        '/' => Divide,
+        '%' => Mod,
+        _ => unreachable!(),
+    })(input)
+}
+
+#[rustfmt::skip]
+fn data_type_name(input: &str) -> IResult<&str, DataType> {
     map_res(alphanumeric1, |type_name| {
         use crate::data_type::DataType::*;
         use crate::endian::Endian::*;
@@ -53,7 +113,7 @@ pub fn data_type(input: &str) -> IResult<&str, DataType> {
                 => Err(anyhow!("Date values not supported (yet)")),
 
             "beid3" | "leid3" => Err(anyhow!("ID3 values not supported (yet)")),
-            "indirect" | "indirect/r" => Err(anyhow!("Indirect magic not supported (yet)")),
+            "indirect" => Err(anyhow!("Indirect magic not supported (yet)")),
 
             "name" => Ok(Name("".to_string())),
             "use"  => Ok(Use("".to_string())),
@@ -115,18 +175,30 @@ mod tests {
         assert_eq!(Ok(("", Double(Little))), super::data_type("ledouble"));
     }
 
+    // Numeric types with masks (or other operators) are not supported yet, and
+    // we don't want to parse them incompletely, so we test the error case here
+    // for now.
     #[test]
     fn data_type_with_mask() {
-        use crate::data_type::DataType::*;
-        use crate::endian::Endian::*;
+        // use crate::data_type::DataType::*;
+        // use crate::endian::Endian::*;
+        use nom::{
+            error::{Error, ErrorKind::*},
+            Err::*,
+        };
+
         assert_eq!(
-            Ok((
-                "",
-                Short {
-                    signed: true,
-                    endian: Little
-                }
-            )),
+            Err(Failure(Error {
+                input: "&0x3fff",
+                code: OneOf
+            })),
+            // Ok((
+            //     "",
+            //     Short {
+            //         signed: true,
+            //         endian: Little
+            //     }
+            // )),
             super::data_type("leshort&0x3fff"),
         );
     }

@@ -13,7 +13,7 @@ pub fn unsigned_integer<N: Integer + TryFrom<BigUint>>(input: &str) -> IResult<&
     map_res(big_integer, N::try_from)(input)
 }
 
-fn big_integer(input: &str) -> IResult<&str, BigUint> {
+pub fn big_integer(input: &str) -> IResult<&str, BigUint> {
     alt((
         map_res(preceded(tag("0x"), hex_digit1), |value| {
             BigUint::from_str_radix(value, 16)
